@@ -1,7 +1,7 @@
 {
-  "name": "binary-trading-chart",
+  "name": "Finexa-global-trading",
   "version": "1.0.0",
-  "description": "Binary trading style chart system with admin controls",
+  "description": "paisa hi paisa",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -4,7 +4,7 @@ import { Inter } from 'next/font/google'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Binary Trading Chart - Real-time Market Simulation',
+  title: 'Finexa Trading - Real-time Market Simulation',
   description: 'Professional binary trading chart with admin controls and real-time data',
 }
 

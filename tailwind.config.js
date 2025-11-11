@@ -17,9 +17,9 @@ module.exports = {
         },
         // Brand colors
         brand: {
-          green: '#9AE34E',
-          'green-glow': '#22c55e',
-          cyan: '#22d3ee',
+          green: '#e34e4e',
+          'green-glow': '#c52222',
+          cyan: '#ee2252',
         },
         bullish: '#22c55e',
         bearish: '#ef4444',
@@ -45,12 +45,12 @@ module.exports = {
           '100%': { boxShadow: '0 0 20px rgba(34, 197, 94, 0.8)' },
         },
         'glow-pulse': {
-          '0%, 100%': { 
-            boxShadow: '0 0 20px rgba(154, 227, 78, 0.3), 0 0 40px rgba(154, 227, 78, 0.1)',
+          '0%, 100%': {
+            boxShadow: '0 0 20px rgba(227, 78, 78, 0.3), 0 0 40px rgba(227, 78, 78, 0.1)',
             filter: 'brightness(1)'
           },
-          '50%': { 
-            boxShadow: '0 0 30px rgba(154, 227, 78, 0.5), 0 0 60px rgba(154, 227, 78, 0.2)',
+          '50%': {
+            boxShadow: '0 0 30px rgba(227, 78, 78, 0.5), 0 0 60px rgba(227, 78, 78, 0.2)',
             filter: 'brightness(1.1)'
           },
         },

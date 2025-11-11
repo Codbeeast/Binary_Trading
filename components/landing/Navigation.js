@@ -41,14 +41,14 @@ export default function Navigation() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
             <div className="relative">
-              <div className="absolute inset-0 bg-brand-green/20 blur-xl rounded-full group-hover:bg-brand-green/30 transition-all" />
-              <div className="relative p-2 bg-gradient-to-br from-brand-green/20 to-brand-cyan/20 rounded-xl border border-brand-green/30">
-                <TrendingUp className="w-6 h-6 text-brand-green" />
+              <div className="absolute inset-0 bg-red-400/20 blur-xl rounded-full group-hover:bg-brand-green/30 transition-all" />
+              <div className="relative p-2 bg-gradient-to-br from-red-300/20 to-red-400/20 rounded-xl border border-red-700/30">
+                <TrendingUp className="w-6 h-6 text-red-500" />
               </div>
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold text-white">BinaryTrade</span>
-              <span className="text-xs text-gray-400">Pro Platform</span>
+              <span className="text-xl font-bold text-white">Finexa</span>
+              <span className="text-xs text-gray-400">Global Trading Platform</span>
             </div>
           </Link>
 
@@ -116,14 +116,14 @@ export default function Navigation() {
               <div className="pt-4 space-y-3 border-t border-white/5">
                 <Link
                   href="/demo"
-                  className="block w-full px-4 py-3 text-center text-gray-300 border border-gray-700 rounded-lg hover:border-brand-green/50 transition-all"
+                  className="block w-full px-4 py-3 text-center text-gray-300 border border-gray-700 rounded-lg hover:border-brand-red/50 transition-all"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Live Demo
                 </Link>
                 <Link
                   href="/admin"
-                  className="block w-full px-4 py-3 text-center bg-gradient-to-r from-brand-green to-brand-green-glow text-dark-900 font-semibold rounded-lg"
+                  className="block w-full px-4 py-3 text-center bg-gradient-to-r from-brand-red to-brand-red-glow text-dark-900 font-semibold rounded-lg"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Login

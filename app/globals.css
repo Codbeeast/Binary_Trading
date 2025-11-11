@@ -8,9 +8,9 @@
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 10, 13, 20;
   --background-end-rgb: 15, 23, 36;
-  --brand-green: #9AE34E;
-  --brand-green-glow: #22c55e;
-  --brand-cyan: #22d3ee;
+  --brand-green: #e34e5a;
+  --brand-green-glow: #c52222;
+  --brand-cyan: #ee2252;
 }
 
 body {
