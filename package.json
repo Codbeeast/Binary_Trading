@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "paisa hi paisa",
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently \"next dev\" \"node server.js\"",
     "build": "next build",
-    "start": "next start",
+    "start": "concurrently \"next start\" \"node server.js\"",
     "lint": "next lint",
     "server": "node server.js"
   },
@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
     "eslint": "^8.56.0",
     "eslint-config-next": "^14.0.4",
     "mongodb-memory-server": "^10.3.0",
