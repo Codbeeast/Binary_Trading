@@ -52,7 +52,7 @@ export default function Testimonials() {
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [currentIndex]);
+  }, [currentIndex, paginate]);
 
   const slideVariants = {
     enter: (direction) => ({
@@ -132,7 +132,7 @@ export default function Testimonials() {
 
                   {/* Quote */}
                   <blockquote className="text-xl md:text-2xl text-gray-200 leading-relaxed mb-8 font-light">
-                    "{testimonials[currentIndex].quote}"
+                    &ldquo;{testimonials[currentIndex].quote}&rdquo;
                   </blockquote>
 
                   {/* Author */}
