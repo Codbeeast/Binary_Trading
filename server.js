@@ -302,6 +302,70 @@ io.on('connection', (socket) => {
     // Broadcast updated state to all clients
     io.emit('market_state', marketState);
   });
+
+  // Handle manual candle close
+  socket.on('force_close_candle', async (data) => {
+    console.log('🔒 Force close candle received:', data);
+    
+    const { timeframe } = data;
+    
+    if (!timeframe || !candleTrackers[timeframe]) {
+      console.error('❌ Invalid timeframe:', timeframe);
+      socket.emit('candle_closed', { 
+        timeframe, 
+        success: false,
+        message: `Invalid timeframe: ${timeframe}` 
+      });
+      return;
+    }
+    
+    const tracker = candleTrackers[timeframe];
+    const timestamp = Date.now();
+    const currentPrice = marketState.currentPrice;
+    
+    // Initialize candle if not started yet
+    if (!tracker.startTime || tracker.open === null) {
+      console.log(`⚠️ Candle not yet started for ${timeframe}, initializing first...`);
+      tracker.open = currentPrice;
+      tracker.high = currentPrice;
+      tracker.low = currentPrice;
+      tracker.close = currentPrice;
+      tracker.startTime = timestamp;
+    }
+    
+    // Close the current candle
+    const completedCandle = {
+      open: tracker.open,
+      high: Math.max(tracker.high, currentPrice),
+      low: Math.min(tracker.low, currentPrice),
+      close: currentPrice,
+      timeframe,
+      timestamp: new Date(tracker.startTime),
+    };
+    
+    // Save completed candle
+    await saveCandle(completedCandle);
+    
+    // Emit completed candle to all clients
+    io.emit('candle_complete', completedCandle);
+    
+    // Reset tracker to start new candle immediately
+    tracker.open = currentPrice;
+    tracker.high = currentPrice;
+    tracker.low = currentPrice;
+    tracker.close = currentPrice;
+    tracker.startTime = timestamp;
+    
+    console.log(`✅ Candle manually closed for ${timeframe} - Open: ${completedCandle.open}, Close: ${completedCandle.close}`);
+    
+    // Emit confirmation to admin
+    socket.emit('candle_closed', { 
+      timeframe, 
+      success: true,
+      message: `Candle closed for ${timeframe}`,
+      candle: completedCandle
+    });
+  });
   
   socket.on('disconnect', () => {
     console.log('👤 Client disconnected:', socket.id);

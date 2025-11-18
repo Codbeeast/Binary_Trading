@@ -13,7 +13,9 @@ import {
   Pause,
   Lock,
   Unlock,
-  Settings
+  Settings,
+  XCircle,
+  Clock
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -28,6 +30,8 @@ export default function AdminPanel() {
     isActive: true,
   });
   const [isConnected, setIsConnected] = useState(false);
+  const [selectedTimeframe, setSelectedTimeframe] = useState('5s');
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     // Check if already authenticated
@@ -59,6 +63,12 @@ export default function AdminPanel() {
     newSocket.on('market_state', (state) => {
       console.log('📊 Market state received:', state);
       setMarketState(state);
+    });
+
+    newSocket.on('candle_closed', (data) => {
+      console.log('🔔 Candle closed:', data);
+      setNotification(data);
+      setTimeout(() => setNotification(null), 3000);
     });
 
     setSocket(newSocket);
@@ -101,6 +111,35 @@ export default function AdminPanel() {
   const toggleActive = () => {
     handleControlUpdate({ isActive: !marketState.isActive });
   };
+
+  const forceCloseCandle = (timeframe) => {
+    console.log('🔒 Force close button clicked for:', timeframe);
+    console.log('Socket exists:', !!socket);
+    console.log('Is connected:', isConnected);
+    
+    if (!socket) {
+      console.error('❌ Socket not initialized');
+      setNotification({ success: false, message: 'Socket not connected' });
+      return;
+    }
+    
+    if (!isConnected) {
+      console.error('❌ Not connected to server');
+      setNotification({ success: false, message: 'Not connected to server' });
+      return;
+    }
+    
+    socket.emit('force_close_candle', { timeframe });
+    console.log('✅ Emitted force_close_candle event for:', timeframe);
+  };
+
+  const timeframes = [
+    { value: '1s', label: '1 Second' },
+    { value: '5s', label: '5 Seconds' },
+    { value: '15s', label: '15 Seconds' },
+    { value: '30s', label: '30 Seconds' },
+    { value: '1m', label: '1 Minute' },
+  ];
 
   const handleLogout = () => {
     setIsAuthenticated(false);
@@ -409,6 +448,65 @@ export default function AdminPanel() {
             </div>
           </motion.button>
         </div>
+
+        {/* Candle Control Section */}
+        <div className="mt-6 chart-container p-6">
+          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+            <XCircle className="w-6 h-6 text-orange-400" />
+            Manual Candle Control
+          </h2>
+          
+          <p className="text-gray-400 mb-6">
+            Force close the current candle for any timeframe. The chart will continue with market data, but you can close candles manually whenever needed.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {timeframes.map((tf) => (
+              <motion.button
+                key={tf.value}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => forceCloseCandle(tf.value)}
+                className="p-6 bg-gradient-to-br from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Clock className="w-8 h-8" />
+                  <span className="text-lg">{tf.label}</span>
+                  <span className="text-xs opacity-75">Close Now</span>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+
+          <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <p className="text-sm text-blue-300">
+              💡 <strong>Tip:</strong> Closing a candle will immediately complete it at the current price and start a new candle. The market data continues to flow normally.
+            </p>
+          </div>
+        </div>
+
+        {/* Notification Toast */}
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-8 right-8 p-6 rounded-xl shadow-2xl ${
+              notification.success
+                ? 'bg-gradient-to-r from-green-600 to-green-700'
+                : 'bg-gradient-to-r from-red-600 to-red-700'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {notification.success ? (
+                <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+              ) : (
+                <XCircle className="w-6 h-6" />
+              )}
+              <span className="font-semibold">{notification.message}</span>
+            </div>
+          </motion.div>
+        )}
 
         {/* Back to Chart */}
         <div className="mt-6 text-center">

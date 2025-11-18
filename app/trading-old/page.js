@@ -131,46 +131,81 @@ export default function Home() {
   }, [selectedTimeframe]);
 
   return (
-    <main className="min-h-screen bg-[#121418] bg-gradient-to-b from-[#14171A] to-[#1A1D20] text-[#E3E5E8] px-4 py-4 md:px-8 md:py-6">
-      {/* Header */}
-      <div className="max-w-[1800px] mx-auto mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-xl shadow-lg shadow-green-500/10">
-            <BarChart3 className="w-7 h-7 text-green-400" />
+    <main className="min-h-screen bg-[#111318] text-[#E3E5E8]">
+      {/* Top header bar */}
+      <header className="border-b border-[#262932] bg-[#191B22]">
+        <div className="mx-auto flex max-w-[1920px] items-center justify-between px-4 py-3 gap-3">
+          {/* Left: brand */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FACC15] text-[#111827] font-black text-xl">
+                F
+              </div>
+              <span className="text-[18px] font-semibold tracking-tight">Finexa</span>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#F9FAFB]">
-              Binary Options Pro
-            </h1>
-            <p className="text-xs md:text-sm text-gray-400">
-              Real-time market view • Smooth, broker-grade charting
-            </p>
+
+          {/* Center: symbol pill */}
+          <div className="hidden sm:flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#20232B] px-3 py-1.5 text-xs border border-white/5">
+              <span className="text-[11px] uppercase tracking-[0.16em] text-gray-400">Crypto IDX</span>
+              <span className="text-[12px] font-semibold text-gray-100">82%</span>
+            </div>
+          </div>
+
+          {/* Right: account + buttons */}
+          <div className="flex items-center gap-3 text-[11px]">
+            <div className="hidden md:flex flex-col items-end leading-tight mr-1">
+              <span className="text-gray-400">Demo account</span>
+              <span className="font-semibold text-gray-100">₹799,900.00</span>
+            </div>
+            <button className="rounded-md bg-[#FACC15] px-3 py-1.5 text-xs font-semibold text-[#111827] shadow-md">
+              Deposit
+            </button>
+            <button className="rounded-md bg-[#2D313A] px-3 py-1.5 text-xs font-semibold text-gray-100 border border-white/10">
+              Withdraw
+            </button>
+            <button className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#2563EB] text-white shadow-[0_0_18px_rgba(37,99,235,0.65)]">
+              <User className="w-4 h-4" />
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Connection Status + Account */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs md:text-sm text-gray-400">
-            <div
-              className={`w-2.5 h-2.5 rounded-full ${
-                isConnected ? "bg-emerald-400 animate-pulse" : "bg-red-500"
-              }`}
-            />
-            <span>{isConnected ? "Live" : "Disconnected"}</span>
+      {/* Main layout: left nav / center chart / right panel */}
+      <div className="mx-auto flex max-w-[1920px] gap-0">
+        {/* Left vertical nav */}
+        <aside className="hidden md:flex w-[72px] flex-col items-center border-r border-[#262932] bg-[#16181F] py-4 gap-4 text-[11px]">
+          <div className="flex flex-col items-center gap-1">
+            <div className="h-8 w-8 rounded-full bg-[#FACC15] flex items-center justify-center text-[#111827] text-sm font-bold">
+              P
+            </div>
+          </div>
+          <div className="flex flex-col gap-4 mt-2 text-gray-400">
+            <button className="flex flex-col items-center gap-1">
+              <span className="h-8 w-8 rounded-full bg-[#262932]" />
+              <span className="text-[10px]">Trades</span>
+            </button>
+            <button className="flex flex-col items-center gap-1">
+              <span className="h-8 w-8 rounded-full bg-[#262932]" />
+              <span className="text-[10px]">Tournaments</span>
+            </button>
+            <button className="flex flex-col items-center gap-1">
+              <span className="h-8 w-8 rounded-full bg-[#262932]" />
+              <span className="text-[10px]">Market</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* Center chart column */}
+        <section className="flex-1 px-2 sm:px-4 py-3">
+          {/* Time row above chart */}
+          <div className="mb-2 flex items-center justify-between text-[11px] text-gray-400">
+            <span>18:13:15 GMT+5</span>
+            <span className="hidden sm:inline">Crypto IDX 82%</span>
           </div>
 
-          {/* Top-right account button */}
-          <button className="relative inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#2563EB] text-white shadow-[0_0_18px_rgba(37,99,235,0.65)]">
-            <User className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,3.2fr)_minmax(260px,1fr)] gap-4 md:gap-6">
-        {/* Left: Chart Shell */}
-        <div className="relative">
-          <div className="relative rounded-xl bg-[#16181D] border border-[#272A32] shadow-[0_20px_40px_rgba(0,0,0,0.65)] overflow-hidden px-3 sm:px-4 pt-3 pb-14 md:pb-16">
+          <div className="relative rounded-xl bg-[#16181D] border border-[#272A32] shadow-[0_20px_40px_rgba(0,0,0,0.65)] overflow-hidden px-2 sm:px-4 pt-3 pb-16">
             {/* Top-left symbol panel */}
             <div className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#20232B] to-[#1B1E24] border border-white/5 px-3 py-2 text-xs">
               <div className="flex flex-col leading-tight">
@@ -202,17 +237,8 @@ export default function Home() {
 
             {/* Chart + overlay */}
             <div className="flex flex-col gap-2">
-              {/* Price Display */}
-              <div className="px-1 md:px-0">
-                <PriceDisplay
-                  price={currentPrice}
-                  direction={marketState.direction}
-                  change={stats.priceChange24h}
-                />
-              </div>
-
               {/* Actual chart area, large like brokers */}
-              <div className="relative mt-2 rounded-lg bg-[#14171A] border border-[#20232B] overflow-hidden h-[420px] md:h-[520px]">
+              <div className="relative rounded-lg bg-[#14171A] border border-[#20232B] overflow-hidden h-[420px] md:h-[520px]">
                 {/* Dashed horizontal reference line with label */}
                 <div className="pointer-events-none absolute inset-x-16 md:inset-x-24 top-1/3 flex items-center">
                   <div className="w-full border-t border-dashed border-[#777777]/60" />
@@ -268,158 +294,103 @@ export default function Home() {
                 {/* Bottom-right floating action button */}
                 <button
                   type="button"
-                  className="absolute right-4 bottom-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#FFD335] text-[#1A1D20] shadow-[0_16px_32px_rgba(0,0,0,0.55)] border border-black/10"
+                  className="absolute right-6 bottom-6 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#FFD335] text-[#1A1D20] shadow-[0_16px_32px_rgba(0,0,0,0.55)] border border-black/10"
                 >
                   <Clock className="h-5 w-5" />
                 </button>
               </div>
 
               {/* Timeframe / footer bar */}
-              <div className="mt-3 flex flex-col gap-2 px-1 md:px-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="inline-flex items-center justify-center rounded-lg bg-[#2C2F36] px-3 py-1.5 text-[11px] font-medium text-gray-100 shadow-sm"
-                    >
-                      5s
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#2C2F36] text-gray-200"
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#2C2F36] text-gray-200"
-                    >
-                      <IndicatorIcon className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#2C2F36] text-gray-200"
-                    >
-                      <Settings className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                    <span className="uppercase tracking-[0.18em] text-gray-500">Server time</span>
-                    <span className="rounded-md bg-[#111318] px-2 py-0.5 text-gray-100">
-                      {new Date().toLocaleTimeString()}
-                    </span>
-                  </div>
+              <div className="mt-3 flex flex-col items-center gap-2 px-1 md:px-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-lg bg-[#2C2F36] px-3 py-1.5 text-[11px] font-medium text-gray-100 shadow-sm"
+                  >
+                    5s
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#2C2F36] text-gray-200"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#2C2F36] text-gray-200"
+                  >
+                    <IndicatorIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#2C2F36] text-gray-200"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </button>
                 </div>
 
-                {/* Small row highlighting current time */}
-                <div className="flex items-center justify-between text-[10px] text-gray-500">
-                  <span>Tokyo</span>
-                  <span>London</span>
-                  <span>New York</span>
+                <div className="flex items-center gap-4 text-[11px] text-gray-500">
+                  <span className="px-2 py-0.5 rounded bg-black/20 text-gray-200">12:20:35</span>
+                  <span>12:22:00</span>
+                  <span>12:24:00</span>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Right: Market Info / Sidebar */}
-        <div className="space-y-4 md:space-y-5">
-          {/* Stats Bar */}
-          <div className="rounded-xl bg-[#16181D] border border-[#272A32] px-4 py-3">
-            <MarketStats stats={stats} marketState={marketState} />
-          </div>
-
-          {/* Market Direction */}
-          <div className="rounded-xl bg-[#16181D] border border-[#272A32] px-4 py-4">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-100">
-              <TrendingUp className="w-4 h-4" />
-              Market Direction
-            </h3>
-            <div className="space-y-3 text-[12px]">
-              <div
-                className={`rounded-lg border px-3 py-2.5 transition-all ${
-                  marketState.direction === "up"
-                    ? "border-emerald-500 bg-emerald-500/10"
-                    : "border-[#2F333C] bg-[#181B20]"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Bullish</span>
-                  {marketState.direction === "up" && (
-                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  )}
-                </div>
+        {/* Right trading info panel */}
+        <aside className="hidden lg:flex w-[260px] flex-col border-l border-[#262932] bg-[#16181F] px-4 py-4 gap-4 text-[12px]">
+          {/* Amount & time cards */}
+          <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 space-y-3">
+            <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+              <span>Amount</span>
+              <span className="text-gray-500">INR</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-lg font-semibold text-gray-100">₹100</span>
+              <div className="flex gap-1">
+                <button className="h-7 w-7 rounded bg-[#262A34] text-gray-200 text-sm flex items-center justify-center">-</button>
+                <button className="h-7 w-7 rounded bg-[#262A34] text-gray-200 text-sm flex items-center justify-center">+</button>
               </div>
-
-              <div
-                className={`rounded-lg border px-3 py-2.5 transition-all ${
-                  marketState.direction === "neutral"
-                    ? "border-sky-500 bg-sky-500/10"
-                    : "border-[#2F333C] bg-[#181B20]"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Neutral</span>
-                  {marketState.direction === "neutral" && (
-                    <span className="h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
-                  )}
-                </div>
-              </div>
-
-              <div
-                className={`rounded-lg border px-3 py-2.5 transition-all ${
-                  marketState.direction === "down"
-                    ? "border-rose-500 bg-rose-500/10"
-                    : "border-[#2F333C] bg-[#181B20]"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span>Bearish</span>
-                  {marketState.direction === "down" && (
-                    <span className="h-2 w-2 rounded-full bg-rose-400 animate-pulse" />
-                  )}
-                </div>
-              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-[11px] text-gray-400">
+              <span>Time</span>
+              <span>18:14</span>
             </div>
           </div>
 
-          {/* Volatility Info */}
-          <div className="rounded-xl bg-[#16181D] border border-[#272A32] px-4 py-4">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-100">
-              <Activity className="w-4 h-4" />
-              Market Info
-            </h3>
-            <div className="space-y-3 text-[12px]">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Volatility</span>
-                <span className="font-semibold">{marketState.volatility.toFixed(1)}x</span>
+          {/* Earnings & majority opinion */}
+          <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 space-y-3">
+            <div className="flex items-center justify-between text-[11px] text-gray-400">
+              <span>Earnings</span>
+              <span className="text-emerald-400 font-semibold">+82%</span>
+            </div>
+            <div className="flex items-center justify-between text-[12px] text-gray-100">
+              <span>Potential</span>
+              <span>₹182.00</span>
+            </div>
+
+            <div className="mt-3 text-[11px] text-gray-400">Majority opinion</div>
+            <div className="mt-1 flex items-center gap-2">
+              <div className="h-2 flex-1 rounded-full bg-[#1F2933] overflow-hidden flex">
+                <div className="h-full w-[39%] bg-emerald-500" />
+                <div className="h-full flex-1 bg-rose-500" />
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Tick speed</span>
-                <span className="font-semibold">{marketState.tickSpeed}ms</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Status</span>
-                <span
-                  className={`font-semibold ${
-                    marketState.isActive ? "text-emerald-400" : "text-rose-400"
-                  }`}
-                >
-                  {marketState.isActive ? "Active" : "Paused"}
-                </span>
-              </div>
+              <span className="text-[10px] text-gray-400">39% / 61%</span>
+            </div>
+
+            {/* Up / down buttons */}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button className="flex flex-col items-center justify-center rounded-lg bg-emerald-500 text-[#04110A] py-2 text-xs font-semibold shadow-[0_8px_18px_rgba(16,185,129,0.4)]">
+                <span>Up</span>
+              </button>
+              <button className="flex flex-col items-center justify-center rounded-lg bg-rose-500 text-[#14030A] py-2 text-xs font-semibold shadow-[0_8px_18px_rgba(244,63,94,0.5)]">
+                <span>Down</span>
+              </button>
             </div>
           </div>
-
-          {/* Admin Link */}
-          <a
-            href="/admin"
-            className="block w-full rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3 text-center text-sm font-semibold shadow-[0_16px_32px_rgba(88,28,135,0.65)] transition-transform hover:scale-[1.02]"
-          >
-            🎮 Admin Control Panel
-          </a>
-        </div>
+        </aside>
       </div>
     </main>
   );
