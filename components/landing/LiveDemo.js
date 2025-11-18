@@ -168,7 +168,7 @@ export default function LiveDemo() {
             className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-brand-green to-brand-green-glow text-dark-900 font-semibold rounded-xl hover:shadow-2xl hover:shadow-brand-green/50 transition-all duration-300 hover:scale-105 group"
           >
             <BarChart3 className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            <span>Open Full Demo</span>
+            <span>View Full Demo</span>
           </a>
         </motion.div>
       </div>
