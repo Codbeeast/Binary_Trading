@@ -152,9 +152,9 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       const futureWidth = chartWidth * futureRatio;
       const pastWidth = chartWidth - futureWidth;
 
-      const baseCandleWidth = Math.min(pastWidth / Math.max(renderCandles.length, 65), 10);
+        const baseCandleWidth = Math.min(pastWidth / Math.max(renderCandles.length, 35), 16);
       const candleWidth = baseCandleWidth * zoomRef.current;
-      const spacing = 2 * zoomRef.current;
+      const spacing = 3 * zoomRef.current;
       const totalCandleSpan = (candleWidth + spacing) * renderCandles.length;
 
       // Auto-scroll with time-based movement when not panning
