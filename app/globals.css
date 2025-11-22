@@ -8,19 +8,16 @@
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 10, 13, 20;
   --background-end-rgb: 15, 23, 36;
-  --brand-green: #e34e5a;
-  --brand-green-glow: #c52222;
-  --brand-cyan: #ee2252;
+  --brand-orange: #FF5722;
+  --brand-gold: #FF9800;
+  --brand-glow: #FF5722;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
+  background: linear-gradient(to bottom,
       transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+      rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
   min-height: 100vh;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -56,17 +53,17 @@ body {
 /* Glow effects */
 .glow-green {
   box-shadow: 0 0 10px rgba(34, 197, 94, 0.3),
-              0 0 20px rgba(34, 197, 94, 0.2);
+    0 0 20px rgba(34, 197, 94, 0.2);
 }
 
 .glow-red {
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.3),
-              0 0 20px rgba(239, 68, 68, 0.2);
+    0 0 20px rgba(239, 68, 68, 0.2);
 }
 
 .glow-blue {
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.3),
-              0 0 20px rgba(59, 130, 246, 0.2);
+    0 0 20px rgba(59, 130, 246, 0.2);
 }
 
 /* Chart container */
@@ -79,7 +76,7 @@ body {
 
 /* Grid pattern background */
 .grid-pattern {
-  background-image: 
+  background-image:
     linear-gradient(rgba(100, 100, 120, 0.1) 1px, transparent 1px),
     linear-gradient(90deg, rgba(100, 100, 120, 0.1) 1px, transparent 1px);
   background-size: 50px 50px;
@@ -90,9 +87,11 @@ body {
   0% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
+
   100% {
     background-position: 0% 50%;
   }
@@ -102,4 +101,59 @@ body {
   background: linear-gradient(90deg, #22c55e, #3b82f6, #ef4444, #22c55e);
   background-size: 200% 200%;
   animation: gradient-border 3s ease infinite;
+}
+
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+@layer components {
+  .btn-premium {
+    @apply relative inline-flex items-center justify-center px-6 py-3 font-semibold text-white transition-all duration-300 rounded-xl overflow-hidden;
+    background: linear-gradient(135deg, #FF5722 0%, #FF9800 100%);
+    box-shadow: 0 4px 15px rgba(255, 87, 34, 0.3);
+  }
+
+  .btn-premium::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, #FF9800 0%, #FF5722 100%);
+  }
+
+  .btn-premium:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(255, 87, 34, 0.4);
+  }
+
+  .btn-premium:hover::before {
+    @apply opacity-100;
+  }
+
+  .btn-premium span,
+  .btn-premium svg {
+    @apply relative z-10;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 font-semibold text-white transition-all duration-300 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm;
+  }
+
+  .btn-secondary:hover {
+    @apply bg-white/10 border-brand-orange/30 text-brand-orange;
+    transform: translateY(-2px);
+  }
 }

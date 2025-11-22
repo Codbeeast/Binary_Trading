@@ -75,7 +75,7 @@ export default function Testimonials() {
     <section className="relative py-24 overflow-hidden">
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-900" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-green/5 via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-orange/5 via-transparent to-transparent" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section header */}
@@ -86,12 +86,12 @@ export default function Testimonials() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <span className="inline-block px-4 py-2 bg-brand-cyan/10 border border-brand-cyan/30 rounded-full text-brand-cyan text-sm font-semibold mb-4">
+          <span className="inline-block px-4 py-2 bg-brand-orange/10 border border-brand-orange/30 rounded-full text-brand-orange text-sm font-semibold mb-4">
             Testimonials
           </span>
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
             Trusted by{' '}
-            <span className="bg-gradient-to-r from-brand-green to-brand-cyan bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-orange to-brand-gold bg-clip-text text-transparent">
               Thousands
             </span>
           </h2>
@@ -117,10 +117,10 @@ export default function Testimonials() {
                 }}
                 className="absolute w-full"
               >
-                <div className="relative bg-dark-700/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 hover:border-brand-green/30 transition-all">
+                <div className="relative bg-dark-700/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 hover:border-brand-orange/30 transition-all">
                   {/* Quote icon */}
-                  <div className="absolute -top-6 left-8 p-4 bg-gradient-to-br from-brand-green/20 to-brand-cyan/20 rounded-2xl border border-white/10">
-                    <Quote className="w-8 h-8 text-brand-green" />
+                  <div className="absolute -top-6 left-8 p-4 bg-gradient-to-br from-brand-orange/20 to-brand-gold/20 rounded-2xl border border-white/10">
+                    <Quote className="w-8 h-8 text-brand-orange" />
                   </div>
 
                   {/* Rating */}
@@ -137,7 +137,7 @@ export default function Testimonials() {
 
                   {/* Author */}
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-green to-brand-cyan flex items-center justify-center text-dark-900 font-bold text-lg">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-brand-orange to-brand-gold flex items-center justify-center text-white font-bold text-lg">
                       {testimonials[currentIndex].avatar}
                     </div>
                     <div>
@@ -158,10 +158,10 @@ export default function Testimonials() {
           <div className="flex items-center justify-center gap-4 mt-8">
             <button
               onClick={() => paginate(-1)}
-              className="p-3 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-full hover:border-brand-green/50 hover:bg-dark-700 transition-all group"
+              className="p-3 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-full hover:border-brand-orange/50 hover:bg-dark-700 transition-all group"
               aria-label="Previous testimonial"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-brand-green transition-colors" />
+              <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:text-brand-orange transition-colors" />
             </button>
 
             {/* Dots */}
@@ -173,11 +173,10 @@ export default function Testimonials() {
                     setDirection(index > currentIndex ? 1 : -1);
                     setCurrentIndex(index);
                   }}
-                  className={`h-2 rounded-full transition-all ${
-                    index === currentIndex
-                      ? 'w-8 bg-brand-green'
+                  className={`h-2 rounded-full transition-all ${index === currentIndex
+                      ? 'w-8 bg-brand-orange'
                       : 'w-2 bg-gray-600 hover:bg-gray-500'
-                  }`}
+                    }`}
                   aria-label={`Go to testimonial ${index + 1}`}
                 />
               ))}
@@ -185,10 +184,10 @@ export default function Testimonials() {
 
             <button
               onClick={() => paginate(1)}
-              className="p-3 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-full hover:border-brand-green/50 hover:bg-dark-700 transition-all group"
+              className="p-3 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-full hover:border-brand-orange/50 hover:bg-dark-700 transition-all group"
               aria-label="Next testimonial"
             >
-              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-brand-green transition-colors" />
+              <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-brand-orange transition-colors" />
             </button>
           </div>
         </div>

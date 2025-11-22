@@ -41,7 +41,7 @@ export default function Pricing() {
         'Custom indicators',
         'Portfolio management',
       ],
-      gradient: 'from-brand-green to-brand-green-glow',
+      gradient: 'from-brand-orange to-brand-gold',
       popular: true,
     },
     {
@@ -69,7 +69,7 @@ export default function Pricing() {
     <section id="pricing" className="relative py-24 overflow-hidden">
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-900" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-brand-cyan/5 via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-brand-orange/5 via-transparent to-transparent" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section header */}
@@ -85,7 +85,7 @@ export default function Pricing() {
           </span>
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
             Choose Your{' '}
-            <span className="bg-gradient-to-r from-brand-green to-brand-cyan bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-orange to-brand-gold bg-clip-text text-transparent">
               Perfect Plan
             </span>
           </h2>
@@ -97,24 +97,22 @@ export default function Pricing() {
           <div className="inline-flex items-center gap-4 p-1 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-xl">
             <button
               onClick={() => setBillingPeriod('monthly')}
-              className={`px-6 py-2 rounded-lg font-semibold transition-all ${
-                billingPeriod === 'monthly'
-                  ? 'bg-brand-green text-dark-900'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              className={`px-6 py-2 rounded-lg font-semibold transition-all ${billingPeriod === 'monthly'
+                ? 'bg-brand-orange text-white'
+                : 'text-gray-400 hover:text-white'
+                }`}
             >
               Monthly
             </button>
             <button
               onClick={() => setBillingPeriod('annual')}
-              className={`px-6 py-2 rounded-lg font-semibold transition-all relative ${
-                billingPeriod === 'annual'
-                  ? 'bg-brand-green text-dark-900'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              className={`px-6 py-2 rounded-lg font-semibold transition-all relative ${billingPeriod === 'annual'
+                ? 'bg-brand-orange text-white'
+                : 'text-gray-400 hover:text-white'
+                }`}
             >
               Annual
-              <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-brand-cyan text-dark-900 text-xs font-bold rounded-full">
+              <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-brand-gold text-dark-900 text-xs font-bold rounded-full">
                 -20%
               </span>
             </button>
@@ -136,7 +134,7 @@ export default function Pricing() {
               {/* Popular badge */}
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
-                  <div className="px-4 py-1 bg-gradient-to-r from-brand-green to-brand-cyan rounded-full text-dark-900 text-sm font-bold">
+                  <div className="px-4 py-1 bg-gradient-to-r from-brand-orange to-brand-gold rounded-full text-white text-sm font-bold shadow-lg">
                     Most Popular
                   </div>
                 </div>
@@ -144,16 +142,15 @@ export default function Pricing() {
 
               {/* Glow effect */}
               {plan.popular && (
-                <div className="absolute inset-0 bg-gradient-to-br from-brand-green/20 to-brand-cyan/20 blur-2xl rounded-3xl" />
+                <div className="absolute inset-0 bg-gradient-to-br from-brand-orange/20 to-brand-gold/20 blur-2xl rounded-3xl" />
               )}
 
               {/* Card */}
               <div
-                className={`relative h-full bg-dark-700/50 backdrop-blur-xl border rounded-3xl p-8 transition-all ${
-                  plan.popular
-                    ? 'border-brand-green/50 shadow-2xl shadow-brand-green/20'
-                    : 'border-white/10 hover:border-brand-green/30'
-                }`}
+                className={`relative h-full bg-dark-700/50 backdrop-blur-xl border rounded-3xl p-8 transition-all ${plan.popular
+                  ? 'border-brand-orange/50 shadow-2xl shadow-brand-orange/20'
+                  : 'border-white/10 hover:border-brand-orange/30'
+                  }`}
               >
                 {/* Icon */}
                 <div className={`inline-flex p-3 bg-gradient-to-br ${plan.gradient} rounded-xl mb-4`}>
@@ -175,7 +172,7 @@ export default function Pricing() {
                     </span>
                   </div>
                   {billingPeriod === 'annual' && (
-                    <p className="text-sm text-brand-green mt-2">
+                    <p className="text-sm text-brand-orange mt-2">
                       Save ${plan.monthlyPrice * 12 - plan.annualPrice}/year
                     </p>
                   )}
@@ -183,11 +180,10 @@ export default function Pricing() {
 
                 {/* CTA button */}
                 <button
-                  className={`w-full py-3 rounded-xl font-semibold transition-all mb-8 ${
-                    plan.popular
-                      ? 'bg-gradient-to-r from-brand-green to-brand-green-glow text-dark-900 hover:shadow-lg hover:shadow-brand-green/50 hover:scale-105'
-                      : 'bg-dark-600 text-white hover:bg-dark-500 border border-white/10'
-                  }`}
+                  className={`w-full py-3 rounded-xl font-semibold transition-all mb-8 ${plan.popular
+                      ? 'btn-premium'
+                      : 'btn-secondary hover:bg-white/10'
+                    }`}
                 >
                   Get Started
                 </button>
@@ -196,8 +192,8 @@ export default function Pricing() {
                 <div className="space-y-3">
                   {plan.features.map((feature, i) => (
                     <div key={i} className="flex items-start gap-3">
-                      <div className="mt-0.5 p-0.5 bg-brand-green/20 rounded-full">
-                        <Check className="w-4 h-4 text-brand-green" />
+                      <div className="mt-0.5 p-0.5 bg-brand-orange/20 rounded-full">
+                        <Check className="w-4 h-4 text-brand-orange" />
                       </div>
                       <span className="text-sm text-gray-300">{feature}</span>
                     </div>
@@ -218,7 +214,7 @@ export default function Pricing() {
         >
           <div className="inline-flex items-center gap-2 px-6 py-3 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-xl">
             <span className="text-gray-300">Need a custom solution?</span>
-            <a href="#contact" className="text-brand-green hover:text-brand-green-glow font-semibold transition-colors">
+            <a href="#contact" className="text-brand-orange hover:text-brand-gold font-semibold transition-colors">
               Contact Sales →
             </a>
           </div>

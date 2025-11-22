@@ -30,20 +30,19 @@ export default function Navigation() {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.5 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled
-          ? 'bg-dark-900/80 backdrop-blur-xl border-b border-white/5 shadow-lg'
-          : 'bg-transparent'
-      }`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
+        ? 'bg-dark-900/80 backdrop-blur-xl border-b border-white/5 shadow-lg'
+        : 'bg-transparent'
+        }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
             <div className="relative">
-              <div className="absolute inset-0 bg-red-400/20 blur-xl rounded-full group-hover:bg-brand-green/30 transition-all" />
-              <div className="relative p-2 bg-gradient-to-br from-red-300/20 to-red-400/20 rounded-xl border border-red-700/30">
-                <TrendingUp className="w-6 h-6 text-red-500" />
+              <div className="absolute inset-0 bg-brand-orange/20 blur-xl rounded-full group-hover:bg-brand-orange/30 transition-all" />
+              <div className="relative p-2 bg-gradient-to-br from-brand-orange/20 to-brand-gold/20 rounded-xl border border-brand-orange/30">
+                <TrendingUp className="w-6 h-6 text-brand-orange" />
               </div>
             </div>
             <div className="flex flex-col">
@@ -61,7 +60,7 @@ export default function Navigation() {
                 className="relative text-gray-300 hover:text-white transition-colors group py-2"
               >
                 {link.name}
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-brand-green to-brand-cyan group-hover:w-full transition-all duration-300" />
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-brand-orange to-brand-gold group-hover:w-full transition-all duration-300" />
               </a>
             ))}
           </div>
@@ -70,13 +69,13 @@ export default function Navigation() {
           <div className="hidden md:flex items-center gap-4">
             <Link
               href="/demo"
-              className="px-5 py-2.5 text-gray-300 hover:text-white border border-gray-700 hover:border-brand-green/50 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-brand-green/20"
+              className="px-5 py-2.5 text-gray-300 hover:text-white border border-gray-700 hover:border-brand-orange/50 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-brand-orange/20"
             >
               Live Demo
             </Link>
             <Link
               href="/admin"
-              className="px-5 py-2.5 bg-gradient-to-r from-brand-green to-brand-green-glow hover:from-brand-green-glow hover:to-brand-green text-dark-900 font-semibold rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-brand-green/50 hover:scale-105"
+              className="btn-premium !px-5 !py-2.5 !rounded-lg !text-sm"
             >
               Login
             </Link>
@@ -116,14 +115,14 @@ export default function Navigation() {
               <div className="pt-4 space-y-3 border-t border-white/5">
                 <Link
                   href="/demo"
-                  className="block w-full px-4 py-3 text-center text-gray-300 border border-gray-700 rounded-lg hover:border-brand-red/50 transition-all"
+                  className="block w-full px-4 py-3 text-center text-gray-300 border border-gray-700 rounded-lg hover:border-brand-orange/50 transition-all"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Live Demo
                 </Link>
                 <Link
                   href="/admin"
-                  className="block w-full px-4 py-3 text-center bg-gradient-to-r from-brand-red to-brand-red-glow text-dark-900 font-semibold rounded-lg"
+                  className="block w-full px-4 py-3 text-center bg-gradient-to-r from-brand-orange to-brand-gold text-white font-semibold rounded-lg"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Login

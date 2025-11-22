@@ -14,8 +14,8 @@ export default function Features() {
       icon: BarChart3,
       title: 'Simple Analytics',
       description: 'Intuitive dashboards with real-time insights and powerful data visualization tools.',
-      gradient: 'from-brand-green/20 to-brand-cyan/20',
-      iconColor: 'text-brand-green',
+      gradient: 'from-brand-orange/20 to-brand-gold/20',
+      iconColor: 'text-brand-orange',
       sparkline: [40, 45, 42, 48, 52, 49, 55, 58, 54, 60],
     },
     {
@@ -38,8 +38,8 @@ export default function Features() {
       icon: Activity,
       title: 'Realtime Monitoring',
       description: 'Track market movements and execute trades with millisecond precision.',
-      gradient: 'from-orange-500/20 to-red-500/20',
-      iconColor: 'text-orange-400',
+      gradient: 'from-brand-gold/20 to-red-500/20',
+      iconColor: 'text-brand-gold',
       sparkline: [45, 50, 48, 52, 55, 58, 56, 60, 58, 65],
     },
   ];
@@ -69,7 +69,7 @@ export default function Features() {
     <section id="features" className="relative py-24 overflow-hidden">
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-900" />
-      
+
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section header */}
         <motion.div
@@ -79,12 +79,12 @@ export default function Features() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <span className="inline-block px-4 py-2 bg-brand-green/10 border border-brand-green/30 rounded-full text-brand-green text-sm font-semibold mb-4">
+          <span className="inline-block px-4 py-2 bg-brand-orange/10 border border-brand-orange/30 rounded-full text-brand-orange text-sm font-semibold mb-4">
             Features
           </span>
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
             Everything You Need to{' '}
-            <span className="bg-gradient-to-r from-brand-green to-brand-cyan bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-orange to-brand-gold bg-clip-text text-transparent">
               Trade Better
             </span>
           </h2>
@@ -110,16 +110,16 @@ export default function Features() {
             >
               {/* Glow effect */}
               <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl`} />
-              
+
               {/* Card */}
-              <div className="relative h-full bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:border-brand-green/30 transition-all duration-300">
+              <div className="relative h-full bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:border-brand-orange/30 transition-all duration-300">
                 {/* Icon */}
                 <div className={`inline-flex p-3 bg-gradient-to-br ${feature.gradient} rounded-xl mb-4 group-hover:scale-110 transition-transform duration-300`}>
                   <feature.icon className={`w-6 h-6 ${feature.iconColor}`} />
                 </div>
 
                 {/* Content */}
-                <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-brand-green transition-colors">
+                <h3 className="text-xl font-semibold text-white mb-2 group-hover:text-brand-orange transition-colors">
                   {feature.title}
                 </h3>
                 <p className="text-gray-400 text-sm mb-4 leading-relaxed">
@@ -140,7 +140,7 @@ export default function Features() {
                 </div>
 
                 {/* Decorative line */}
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-brand-green/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-brand-orange/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </motion.div>
           ))}
@@ -161,10 +161,10 @@ export default function Features() {
           ].map((item, index) => (
             <div
               key={index}
-              className="flex items-center gap-4 p-4 bg-dark-700/30 backdrop-blur-sm border border-white/5 rounded-xl hover:border-brand-green/30 transition-all group"
+              className="flex items-center gap-4 p-4 bg-dark-700/30 backdrop-blur-sm border border-white/5 rounded-xl hover:border-brand-orange/30 transition-all group"
             >
-              <div className="p-2 bg-brand-green/10 rounded-lg group-hover:bg-brand-green/20 transition-colors">
-                <item.icon className="w-5 h-5 text-brand-green" />
+              <div className="p-2 bg-brand-orange/10 rounded-lg group-hover:bg-brand-orange/20 transition-colors">
+                <item.icon className="w-5 h-5 text-brand-orange" />
               </div>
               <p className="text-sm text-gray-300">{item.text}</p>
             </div>

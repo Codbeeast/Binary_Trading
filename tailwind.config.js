@@ -17,16 +17,17 @@ module.exports = {
         },
         // Brand colors
         brand: {
-          green: '#e34e4e',
-          'green-glow': '#c52222',
-          cyan: '#ee2252',
+          orange: '#FF5722',
+          gold: '#FF9800',
+          glow: '#FF5722',
         },
         bullish: '#22c55e',
         bearish: '#ef4444',
         neutral: '#6b7280',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        heading: ['var(--font-outfit)', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       animation: {

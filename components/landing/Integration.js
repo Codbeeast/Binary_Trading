@@ -47,19 +47,19 @@ export default function Integration() {
       icon: Bell,
       title: 'Smart Alerts',
       description: 'Custom price alerts and notifications',
-      color: 'text-yellow-400',
+      color: 'text-brand-orange',
     },
     {
       icon: Settings,
       title: 'Automation',
       description: 'Automated trading strategies',
-      color: 'text-blue-400',
+      color: 'text-brand-gold',
     },
     {
       icon: Lock,
       title: 'Security',
       description: '2FA and biometric authentication',
-      color: 'text-green-400',
+      color: 'text-brand-glow',
     },
   ];
 
@@ -67,7 +67,7 @@ export default function Integration() {
     <section id="integration" className="relative py-24 overflow-hidden">
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-900" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-500/5 via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-orange/5 via-transparent to-transparent" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -78,12 +78,12 @@ export default function Integration() {
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
           >
-            <span className="inline-block px-4 py-2 bg-purple-500/10 border border-purple-500/30 rounded-full text-purple-400 text-sm font-semibold mb-4">
+            <span className="inline-block px-4 py-2 bg-brand-orange/10 border border-brand-orange/30 rounded-full text-brand-orange text-sm font-semibold mb-4">
               Integration
             </span>
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
               Why It{' '}
-              <span className="bg-gradient-to-r from-brand-green to-brand-cyan bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-brand-orange to-brand-gold bg-clip-text text-transparent">
                 Works
               </span>
             </h2>
@@ -99,11 +99,10 @@ export default function Integration() {
                   <button
                     key={tf}
                     onClick={() => setActiveTimeframe(tf)}
-                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                      activeTimeframe === tf
-                        ? 'bg-brand-green text-dark-900 shadow-lg shadow-brand-green/30'
-                        : 'bg-dark-700/50 text-gray-400 hover:text-white border border-white/10 hover:border-brand-green/30'
-                    }`}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-all ${activeTimeframe === tf
+                      ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/30'
+                      : 'bg-dark-700/50 text-gray-400 hover:text-white border border-white/10 hover:border-brand-orange/30'
+                      }`}
                   >
                     {tf}
                   </button>
@@ -120,9 +119,9 @@ export default function Integration() {
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: index * 0.1 }}
-                  className="flex items-center gap-4 p-4 bg-dark-700/30 backdrop-blur-sm border border-white/5 rounded-xl hover:border-brand-green/30 transition-all group"
+                  className="flex items-center gap-4 p-4 bg-dark-700/30 backdrop-blur-sm border border-white/5 rounded-xl hover:border-brand-orange/30 transition-all group"
                 >
-                  <div className="p-2 bg-dark-800/50 rounded-lg group-hover:bg-brand-green/10 transition-colors">
+                  <div className="p-2 bg-dark-800/50 rounded-lg group-hover:bg-brand-orange/10 transition-colors">
                     <highlight.icon className={`w-5 h-5 ${highlight.color}`} />
                   </div>
                   <div>
@@ -143,9 +142,9 @@ export default function Integration() {
             >
               <a
                 href="#docs"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-xl text-white hover:border-brand-green/50 hover:bg-dark-700 transition-all group"
+                className="btn-secondary group"
               >
-                <Code className="w-5 h-5 group-hover:text-brand-green transition-colors" />
+                <Code className="w-5 h-5 mr-2 group-hover:text-brand-orange transition-colors" />
                 <span>View Documentation</span>
               </a>
             </motion.div>
@@ -170,12 +169,12 @@ export default function Integration() {
                 className="relative group"
               >
                 {/* Glow effect */}
-                <div className="absolute inset-0 bg-gradient-to-br from-brand-green/10 to-brand-cyan/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
-                
+                <div className="absolute inset-0 bg-gradient-to-br from-brand-orange/10 to-brand-gold/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
+
                 {/* Card */}
-                <div className="relative bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:border-brand-green/30 transition-all h-full">
-                  <div className="p-3 bg-gradient-to-br from-brand-green/10 to-brand-cyan/10 rounded-xl inline-flex mb-4 group-hover:scale-110 transition-transform">
-                    <feature.icon className="w-6 h-6 text-brand-green" />
+                <div className="relative bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:border-brand-orange/30 transition-all h-full">
+                  <div className="p-3 bg-gradient-to-br from-brand-orange/10 to-brand-gold/10 rounded-xl inline-flex mb-4 group-hover:scale-110 transition-transform">
+                    <feature.icon className="w-6 h-6 text-brand-orange" />
                   </div>
                   <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
                   <p className="text-sm text-gray-400 leading-relaxed">{feature.description}</p>

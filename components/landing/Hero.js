@@ -1,22 +1,28 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Play, ArrowRight, Zap, Shield, TrendingUp } from 'lucide-react';
+import { ArrowRight, Zap, Shield, TrendingUp, PlayCircle, Rocket } from 'lucide-react';
+import Link from 'next/link';
 import AnimatedChartPreview from './AnimatedChartPreview';
 
 export default function Hero() {
   const valueProps = [
-    { icon: Zap, text: 'Lightning Fast', color: 'text-yellow-400' },
+    { icon: Zap, text: 'Lightning Fast', color: 'text-brand-gold' },
     { icon: Shield, text: 'Secure Trading', color: 'text-blue-400' },
-    { icon: TrendingUp, text: 'Real-time Data', color: 'text-brand-green' },
+    { icon: TrendingUp, text: 'Real-time Data', color: 'text-brand-orange' },
   ];
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
       {/* Background effects */}
-      <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-900" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-green/10 via-transparent to-transparent" />
-      
+      <div className="absolute inset-0 bg-dark-900" />
+      <div
+        className="absolute inset-0 opacity-20 bg-cover bg-center mix-blend-overlay"
+        style={{ backgroundImage: 'url(/finexa_hero_bg.png)' }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-dark-900/80 via-dark-800/80 to-dark-900" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-orange/20 via-transparent to-transparent" />
+
       {/* Grid pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px]" />
 
@@ -37,8 +43,8 @@ export default function Hero() {
                 transition={{ delay: 0.2 }}
                 className="inline-block"
               >
-                <span className="px-4 py-2 bg-brand-green/10 border border-brand-green/30 rounded-full text-brand-green text-sm font-semibold">
-                  🚀 Next-Gen Trading Platform
+                <span className="px-4 py-2 bg-brand-orange/10 border border-brand-orange/30 rounded-full text-brand-orange text-sm font-semibold shadow-[0_0_15px_rgba(255,87,34,0.3)] flex items-center gap-2">
+                  <Rocket className="w-4 h-4" /> Elite Trading Platform
                 </span>
               </motion.div>
 
@@ -52,7 +58,7 @@ export default function Hero() {
                   Trade Smarter.
                 </span>
                 <br />
-                <span className="bg-gradient-to-r from-brand-green via-brand-green-glow to-brand-cyan bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-brand-orange via-brand-gold to-brand-glow bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(255,87,34,0.5)]">
                   Visualize Faster.
                 </span>
               </motion.h1>
@@ -63,7 +69,7 @@ export default function Hero() {
                 transition={{ delay: 0.4 }}
                 className="text-xl text-gray-400 max-w-xl"
               >
-                High-performance binary charting with instant visualization. Experience the future of trading with real-time analytics and beautiful insights.
+                Experience the pinnacle of binary charting. Real-time analytics, premium insights, and a Phoenix-inspired interface for the elite trader.
               </motion.p>
             </div>
 
@@ -77,7 +83,7 @@ export default function Hero() {
               {valueProps.map((prop, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-2 px-4 py-2 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-lg hover:border-brand-green/30 transition-all group"
+                  className="flex items-center gap-2 px-4 py-2 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-lg hover:border-brand-orange/30 transition-all group hover:shadow-[0_0_10px_rgba(255,87,34,0.2)]"
                 >
                   <prop.icon className={`w-4 h-4 ${prop.color} group-hover:scale-110 transition-transform`} />
                   <span className="text-sm text-gray-300">{prop.text}</span>
@@ -90,24 +96,15 @@ export default function Hero() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="flex flex-col sm:flex-row gap-4"
-            >
-              <a
-                href="#demo"
-                className="group relative px-8 py-4 bg-gradient-to-r from-brand-green to-brand-green-glow rounded-xl font-semibold text-dark-900 hover:shadow-2xl hover:shadow-brand-green/50 transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2"
-              >
-                <span>Get Started</span>
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-brand-green-glow to-brand-cyan opacity-0 group-hover:opacity-100 blur-xl transition-opacity -z-10" />
-              </a>
-
-              <a
-                href="#demo"
-                className="group px-8 py-4 bg-dark-700/50 backdrop-blur-sm border border-white/10 rounded-xl font-semibold text-white hover:border-brand-green/50 hover:bg-dark-700 transition-all duration-300 flex items-center justify-center gap-2"
-              >
-                <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <Link href="/chart" className="btn-premium group">
+                <span>Start Trading Now</span>
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link href="/demo" className="btn-secondary group">
+                <PlayCircle className="w-5 h-5 mr-2 group-hover:text-brand-orange transition-colors" />
                 <span>Watch Demo</span>
-              </a>
+              </Link>
             </motion.div>
 
             {/* Stats */}
@@ -139,6 +136,7 @@ export default function Hero() {
             transition={{ duration: 0.8, delay: 0.3 }}
             className="relative"
           >
+            <div className="absolute -inset-4 bg-brand-orange/20 blur-3xl rounded-full opacity-20 animate-pulse-slow" />
             <AnimatedChartPreview />
           </motion.div>
         </div>
@@ -158,7 +156,7 @@ export default function Hero() {
             transition={{ duration: 1.5, repeat: Infinity }}
             className="w-6 h-10 border-2 border-gray-600 rounded-full flex items-start justify-center p-2"
           >
-            <div className="w-1.5 h-1.5 bg-brand-green rounded-full" />
+            <div className="w-1.5 h-1.5 bg-brand-orange rounded-full" />
           </motion.div>
         </div>
       </motion.div>
