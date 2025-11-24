@@ -14,13 +14,13 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
   const priceVelocityRef = useRef(0);
   const renderCandlesRef = useRef([]);
   const scrollOffsetRef = useRef(0);
-  const pixelsPerMsRef = useRef(0.04); // tuned for smooth flow
+  const pixelsPerMsRef = useRef(0.0008); // very slow auto-scroll
   const lastTimestampRef = useRef(null);
 
   // Interaction refs
   const isPanningRef = useRef(false);
   const lastPanXRef = useRef(0);
-  const zoomRef = useRef(1); // 1 = default zoom
+  const zoomRef = useRef(1.5); // 1.5 = default zoom (more zoomed in)
   const hoverStateRef = useRef({ x: null, y: null, price: null, index: null, time: null });
 
   // Handle resize
@@ -39,10 +39,13 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
   // Keep renderCandlesRef in sync with incoming candles (target state for interpolation)
   useEffect(() => {
+    console.log('🎨 TradingChart received candles:', candles?.length || 0);
     if (!candles || candles.length === 0) {
+      console.log('⚠️  No candles to render');
       renderCandlesRef.current = [];
       return;
     }
+    console.log('✅ Updating renderCandlesRef with', candles.length, 'candles');
 
     const existing = renderCandlesRef.current;
     const updated = candles.map((c, idx) => {
@@ -95,6 +98,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       const height = dimensions.height;
       const chartWidth = width - padding.left - padding.right;
       const chartHeight = height - padding.top - padding.bottom;
+      const verticalZoom = 1.8; // increase 1 → 1.5 → 2 to stretch vertically
+
 
       // Time-based delta for smooth scrolling
       if (lastTimestampRef.current == null) lastTimestampRef.current = timestamp;
@@ -138,7 +143,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       const maxPrice = Math.max(...priceArray, visiblePrice);
       const minPrice = Math.min(...priceArray, visiblePrice);
       const rawRange = maxPrice - minPrice || 1;
-      const priceBuffer = rawRange * 0.15;
+      const priceBuffer = rawRange * 0.1;
       const yMax = maxPrice + priceBuffer;
       const yMin = minPrice - priceBuffer;
       const yRange = yMax - yMin || 1;
@@ -147,21 +152,24 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         return padding.top + chartHeight - ((price - yMin) / yRange) * chartHeight;
       };
 
+
       // Horizontal layout: reserve future area on the right
       const futureRatio = 0.22;
       const futureWidth = chartWidth * futureRatio;
       const pastWidth = chartWidth - futureWidth;
 
-        const baseSpacing = 12;
-      const spacing = Math.max(8, baseSpacing * zoomRef.current);
-      const baseCandleWidth = spacing * 0.7; // 70% of spacing for candle width
+      const baseCandleWidth = Math.min(pastWidth / Math.max(renderCandles.length, 100), 12);
       const candleWidth = baseCandleWidth * zoomRef.current;
+      const spacing = 2 * zoomRef.current;
       const totalCandleSpan = (candleWidth + spacing) * renderCandles.length;
 
-      // Auto-scroll with time-based movement when not panning
-      if (!isPanningRef.current) {
+      // Auto-scroll with time-based movement when not panning (only if we have enough candles)
+      if (!isPanningRef.current && renderCandles.length > 5) {
         const pxPerMs = pixelsPerMsRef.current;
         scrollOffsetRef.current -= pxPerMs * deltaMs;
+      } else if (renderCandles.length <= 5) {
+        // Keep scroll at 0 when we have few candles to ensure they're visible
+        scrollOffsetRef.current = 0;
       }
 
       // Clamp scroll so latest candles stay near left edge of future area
@@ -520,7 +528,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[500px] rounded-lg overflow-hidden"
+      className="relative w-full h-full rounded-lg overflow-hidden"
       onMouseMove={handleMouseMove}
       onMouseLeave={handlePointerLeave}
       onWheel={handleWheel}

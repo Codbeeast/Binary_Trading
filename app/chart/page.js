@@ -17,7 +17,7 @@ export default function Home() {
     tickSpeed: 300,
     isActive: true,
   });
-  const [selectedTimeframe, setSelectedTimeframe] = useState('5s');
+  const [selectedTimeframe, setSelectedTimeframe] = useState('1s');
   const [candles, setCandles] = useState([]);
   const [ticks, setTicks] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -57,9 +57,16 @@ export default function Home() {
 
     // Receive historical candles
     newSocket.on('historical_candles', (data) => {
+      console.log(`📈 Historical candles received for ${data.timeframe}:`, data.candles.length, 'candles');
       if (data.timeframe === selectedTimeframe) {
-        console.log(`📈 Received ${data.candles.length} historical candles for ${data.timeframe}`);
-        setCandles(data.candles);
+        console.log(`✅ Setting ${data.candles.length} historical candles for ${data.timeframe}`);
+        if (data.candles.length > 0) {
+          setCandles(data.candles);
+        } else {
+          console.log('⚠️  No historical candles available for', data.timeframe);
+        }
+      } else {
+        console.log(`⏭️  Skipping historical candles for ${data.timeframe} (selected: ${selectedTimeframe})`);
       }
     });
 
@@ -80,6 +87,7 @@ export default function Home() {
 
     // Receive candle updates
     newSocket.on('candle_update', (candle) => {
+      console.log('📊 Candle update received:', candle);
       if (candle.timeframe === selectedTimeframe) {
         setCandles(prev => {
           const updated = [...prev];
@@ -88,6 +96,7 @@ export default function Home() {
           } else {
             updated.push(candle);
           }
+          console.log('📊 Updated candles array:', updated.length, 'candles');
           return updated.slice(-150); // Keep last 150 candles
         });
       }
@@ -95,8 +104,16 @@ export default function Home() {
 
     // Receive completed candles
     newSocket.on('candle_complete', (candle) => {
+      console.log('✅ Candle complete received:', candle);
+      console.log('🔍 Candle timeframe:', candle.timeframe, '| Selected:', selectedTimeframe, '| Match:', candle.timeframe === selectedTimeframe);
       if (candle.timeframe === selectedTimeframe) {
-        setCandles(prev => [...prev, candle].slice(-150));
+        setCandles(prev => {
+          const newCandles = [...prev, candle].slice(-150);
+          console.log('✅ Added completed candle. Total:', newCandles.length);
+          return newCandles;
+        });
+      } else {
+        console.log('⏭️  Skipping candle - timeframe mismatch');
       }
     });
 
@@ -238,7 +255,7 @@ export default function Home() {
             {/* Chart + overlay */}
             <div className="flex flex-col gap-2">
               {/* Actual chart area, large like brokers */}
-              <div className="relative rounded-lg bg-[#14171A] border border-[#20232B] overflow-hidden h-[420px] md:h-[520px]">
+              <div className="relative rounded-lg bg-[#14171A] border border-[#20232B] overflow-hidden h-[600px] md:h-[700px]">
                 {/* Dashed horizontal reference line with label */}
                 <div className="pointer-events-none absolute inset-x-16 md:inset-x-24 top-1/3 flex items-center">
                   <div className="w-full border-t border-dashed border-[#777777]/60" />
