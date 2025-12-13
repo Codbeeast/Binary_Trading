@@ -17,7 +17,7 @@ export default function Home() {
     tickSpeed: 300,
     isActive: true,
   });
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1s');
+  const [selectedTimeframe, setSelectedTimeframe] = useState('5s');
   const [candles, setCandles] = useState([]);
   const [ticks, setTicks] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -27,9 +27,72 @@ export default function Home() {
     high24h: 0,
     low24h: 0,
   });
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+  const isHistoryLoadedRef = useRef(false); // Ref to avoid stale closures in socket listeners
 
   const tickCountRef = useRef(0);
   const priceHistoryRef = useRef([]);
+  const blockedTimestampRef = useRef(null);
+
+  const handleTrade = (direction) => {
+    if (socket && isConnected) {
+      console.log(`💰 Placing ${direction} trade...`);
+      socket.emit('place_trade', {
+        direction,
+        amount: 100, // Hardcoded for now, or use state if available
+        timeframe: selectedTimeframe,
+      });
+    }
+  };
+
+  const handleStopCandle = () => {
+    if (socket && isConnected && candles.length > 0) {
+      console.log('🛑 Requesting to stop current candle...');
+
+      // Optimistic update:
+      // 1. Identify the current candle
+      const lastCandle = candles[candles.length - 1];
+      const stopPrice = currentPrice;
+
+      // 2. Block future updates for this candle timestamp
+      blockedTimestampRef.current = new Date(lastCandle.timestamp).getTime();
+
+      // 3. Force update local state immediately
+      setCandles(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        updated[updated.length - 1] = {
+          ...last,
+          close: stopPrice,
+          high: Math.max(last.high, stopPrice),
+          low: Math.min(last.low, stopPrice)
+        };
+        return updated;
+      });
+
+      // 4. Optimistically start the NEXT candle
+      const nextTimestamp = Date.now();
+      setCandles(prev => {
+        const newCandle = {
+          open: stopPrice,
+          high: stopPrice,
+          low: stopPrice,
+          close: stopPrice,
+          timestamp: new Date(nextTimestamp),
+          timeframe: selectedTimeframe,
+          isNew: true
+        };
+        return [...prev, newCandle].slice(-150);
+      });
+
+      // 5. Send request to server with the EXACT price and timestamp
+      socket.emit('force_close_candle', {
+        timeframe: selectedTimeframe,
+        price: stopPrice,
+        nextCandleStartTime: nextTimestamp
+      });
+    }
+  };
 
   useEffect(() => {
     // Connect to Socket.IO server
@@ -46,7 +109,11 @@ export default function Home() {
     newSocket.on('disconnect', () => {
       console.log('❌ Disconnected from server');
       setIsConnected(false);
+      setIsHistoryLoaded(false);
+      isHistoryLoadedRef.current = false; // Reset ref
     });
+
+
 
     // Receive market state
     newSocket.on('market_state', (state) => {
@@ -64,7 +131,10 @@ export default function Home() {
           setCandles(data.candles);
         } else {
           console.log('⚠️  No historical candles available for', data.timeframe);
+          setCandles([]); // Ensure empty if no history
         }
+        setIsHistoryLoaded(true);
+        isHistoryLoadedRef.current = true; // Update ref
       } else {
         console.log(`⏭️  Skipping historical candles for ${data.timeframe} (selected: ${selectedTimeframe})`);
       }
@@ -74,46 +144,72 @@ export default function Home() {
     newSocket.on('tick_update', (tick) => {
       setCurrentPrice(tick.price);
       setTicks(prev => [...prev.slice(-100), tick]);
-      
+
       // Update price history for stats
       priceHistoryRef.current.push(tick.price);
       if (priceHistoryRef.current.length > 1000) {
         priceHistoryRef.current.shift();
       }
-      
+
       // Count ticks for stats
       tickCountRef.current++;
     });
 
     // Receive candle updates
     newSocket.on('candle_update', (candle) => {
-      console.log('📊 Candle update received:', candle);
+      // Gate updates: Don't process if history hasn't loaded yet
+      if (!isHistoryLoadedRef.current) return;
+
       if (candle.timeframe === selectedTimeframe) {
         setCandles(prev => {
-          const updated = [...prev];
-          if (updated.length > 0) {
+          if (prev.length === 0) return [candle];
+
+          const lastCandle = prev[prev.length - 1];
+          const lastTime = new Date(lastCandle.timestamp).getTime();
+          const newTime = new Date(candle.timestamp).getTime();
+
+          if (newTime === lastTime) {
+            // Update existing candle
+            const updated = [...prev];
             updated[updated.length - 1] = candle;
-          } else {
-            updated.push(candle);
+            return updated;
+          } else if (newTime > lastTime) {
+            // New candle started
+            console.log('�️ New candle started:', candle.timestamp);
+            return [...prev, candle].slice(-150);
           }
-          console.log('📊 Updated candles array:', updated.length, 'candles');
-          return updated.slice(-150); // Keep last 150 candles
+
+          return prev;
         });
       }
     });
 
     // Receive completed candles
     newSocket.on('candle_complete', (candle) => {
-      console.log('✅ Candle complete received:', candle);
-      console.log('🔍 Candle timeframe:', candle.timeframe, '| Selected:', selectedTimeframe, '| Match:', candle.timeframe === selectedTimeframe);
+      // Gate updates
+      if (!isHistoryLoadedRef.current) return;
+
       if (candle.timeframe === selectedTimeframe) {
         setCandles(prev => {
-          const newCandles = [...prev, candle].slice(-150);
-          console.log('✅ Added completed candle. Total:', newCandles.length);
-          return newCandles;
+          if (prev.length === 0) return [candle];
+
+          const lastCandle = prev[prev.length - 1];
+          const lastTime = new Date(lastCandle.timestamp).getTime();
+          const newTime = new Date(candle.timestamp).getTime();
+
+          if (newTime === lastTime) {
+            // Finalize existing candle
+            const updated = [...prev];
+            updated[updated.length - 1] = candle;
+            return updated;
+          } else if (newTime > lastTime) {
+            // We missed the update, but here is the complete one
+            console.log('✅ Added completed candle (missed update):', candle.timestamp);
+            return [...prev, candle].slice(-150);
+          }
+
+          return prev;
         });
-      } else {
-        console.log('⏭️  Skipping candle - timeframe mismatch');
       }
     });
 
@@ -235,7 +331,7 @@ export default function Home() {
             </div>
 
             {/* Right-side circular timer elements */}
-            <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 z-20">
+            <div className="absolute right-6 top-[100px] -translate-y-1/2 flex flex-col items-center gap-3 z-20">
               {/* Grey circle */}
               <div className="relative flex flex-col items-center gap-1">
                 <div className="flex items-center justify-center w-16 h-16 rounded-full border-2 border-[#4B4F59] text-xs font-medium text-gray-200">
@@ -399,13 +495,29 @@ export default function Home() {
 
             {/* Up / down buttons */}
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <button className="flex flex-col items-center justify-center rounded-lg bg-emerald-500 text-[#04110A] py-2 text-xs font-semibold shadow-[0_8px_18px_rgba(16,185,129,0.4)]">
+              <button
+                onClick={() => handleTrade('up')}
+                className="flex flex-col items-center justify-center rounded-lg bg-emerald-500 text-[#04110A] py-2 text-xs font-semibold shadow-[0_8px_18px_rgba(16,185,129,0.4)] hover:bg-emerald-400 transition-colors"
+              >
                 <span>Up</span>
               </button>
-              <button className="flex flex-col items-center justify-center rounded-lg bg-rose-500 text-[#14030A] py-2 text-xs font-semibold shadow-[0_8px_18px_rgba(244,63,94,0.5)]">
+              <button
+                onClick={() => handleTrade('down')}
+                className="flex flex-col items-center justify-center rounded-lg bg-rose-500 text-[#14030A] py-2 text-xs font-semibold shadow-[0_8px_18px_rgba(244,63,94,0.5)] hover:bg-rose-400 transition-colors"
+              >
                 <span>Down</span>
               </button>
             </div>
+
+            {/* Stop Candle Button */}
+            {/* <div className="mt-4">
+              <button
+                onClick={handleStopCandle}
+                className="w-full rounded-lg bg-red-600 py-2 text-xs font-semibold text-white shadow-md hover:bg-red-700 transition-colors"
+              >
+                Stop Candle
+              </button>
+            </div> */}
           </div>
         </aside>
       </div>

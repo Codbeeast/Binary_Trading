@@ -14,14 +14,28 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
   const priceVelocityRef = useRef(0);
   const renderCandlesRef = useRef([]);
   const scrollOffsetRef = useRef(0);
-  const pixelsPerMsRef = useRef(0.0008); // very slow auto-scroll
   const lastTimestampRef = useRef(null);
 
   // Interaction refs
   const isPanningRef = useRef(false);
   const lastPanXRef = useRef(0);
-  const zoomRef = useRef(1.5); // 1.5 = default zoom (more zoomed in)
+  const zoomRef = useRef(1.0); // 1.0 = default zoom (shows ~45 candles)
   const hoverStateRef = useRef({ x: null, y: null, price: null, index: null, time: null });
+
+  // Helper to get duration in ms from timeframe string
+  const getTimeframeDuration = (tf) => {
+    const map = {
+      '1s': 1000,
+      '5s': 5000,
+      '15s': 15000,
+      '30s': 30000,
+      '1m': 60000,
+      '2m': 120000,
+      '5m': 300000,
+      '15m': 900000,
+    };
+    return map[tf] || 1000;
+  };
 
   // Handle resize
   useEffect(() => {
@@ -39,17 +53,20 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
   // Keep renderCandlesRef in sync with incoming candles (target state for interpolation)
   useEffect(() => {
-    console.log('🎨 TradingChart received candles:', candles?.length || 0);
     if (!candles || candles.length === 0) {
-      console.log('⚠️  No candles to render');
       renderCandlesRef.current = [];
       return;
     }
-    console.log('✅ Updating renderCandlesRef with', candles.length, 'candles');
 
     const existing = renderCandlesRef.current;
-    const updated = candles.map((c, idx) => {
-      const prev = existing[idx];
+
+    const existingMap = new Map();
+    existing.forEach(c => existingMap.set(c.timestamp.getTime(), c));
+
+    const updated = candles.map((c) => {
+      const ts = new Date(c.timestamp).getTime();
+      const prev = existingMap.get(ts);
+
       if (!prev) {
         return {
           open: c.open,
@@ -60,16 +77,19 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
           targetHigh: c.high,
           targetLow: c.low,
           targetClose: c.close,
-          timestamp: c.timestamp,
+          timestamp: new Date(c.timestamp),
+          isNew: true
         };
       }
+
       return {
         ...prev,
         targetOpen: c.open,
         targetHigh: c.high,
         targetLow: c.low,
         targetClose: c.close,
-        timestamp: c.timestamp,
+        timestamp: new Date(c.timestamp),
+        isNew: false
       };
     });
 
@@ -83,7 +103,6 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    // Set canvas size with devicePixelRatio scaling
     const dpr = window.devicePixelRatio || 1;
     canvas.width = dimensions.width * dpr;
     canvas.height = dimensions.height * dpr;
@@ -91,22 +110,21 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     canvas.style.height = `${dimensions.height}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const padding = { top: 40, right: 100, bottom: 40, left: 60 };
-
+    // *ENHANCEMENT: Increased padding for left price labels to hide candles*
+    const padding = { top: 40, right: 100, bottom: 40, left: 80 }; // Increased left padding
+    
     const updateAndDraw = (timestamp) => {
       const width = dimensions.width;
       const height = dimensions.height;
       const chartWidth = width - padding.left - padding.right;
       const chartHeight = height - padding.top - padding.bottom;
-      const verticalZoom = 1.8; // increase 1 → 1.5 → 2 to stretch vertically
-
 
       // Time-based delta for smooth scrolling
       if (lastTimestampRef.current == null) lastTimestampRef.current = timestamp;
       const deltaMs = Math.min(32, timestamp - lastTimestampRef.current);
       lastTimestampRef.current = timestamp;
 
-      // Interpolate price
+      // Interpolate price (unchanged)
       if (renderPriceRef.current == null) {
         renderPriceRef.current = currentPrice;
       } else {
@@ -125,7 +143,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
       const visiblePrice = renderPriceRef.current ?? currentPrice;
 
-      // Interpolate candles (especially last / hot candle)
+      // Interpolate candles (unchanged)
       const renderCandles = renderCandlesRef.current;
       const lerpFactor = 0.2;
       for (let i = 0; i < renderCandles.length; i++) {
@@ -136,53 +154,56 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         c.close += (c.targetClose - c.close) * lerpFactor;
       }
 
-      // Price range based on candles + visible price
-      const priceArray = renderCandles.length
-        ? renderCandles.flatMap((c) => [c.high, c.low])
+      // Layout calculations (unchanged)
+      const futureRatio = 0.2; 
+      const futureWidth = chartWidth * futureRatio;
+      const pastWidth = chartWidth - futureWidth;
+
+      const targetCandleCount = 25; 
+      const candleFullWidth = pastWidth / targetCandleCount; 
+      const candleWidth = candleFullWidth * 0.7; 
+      const spacing = candleFullWidth * 0.3; 
+      
+      const totalCandleSpan = (candleWidth + spacing) * renderCandles.length;
+      
+      const indexToX = (index) => {
+        const baseX = padding.left + pastWidth - (renderCandles.length - 1 - index) * candleFullWidth;
+        return baseX + scrollOffsetRef.current;
+      };
+
+      // Price range calculation (unchanged)
+      const visibleCandles = [];
+      const viewMinX = padding.left - candleWidth; 
+      const viewMaxX = width - padding.right + candleWidth;
+
+      for (let i = 0; i < renderCandles.length; i++) {
+        const x = indexToX(i);
+        if (x + candleFullWidth > viewMinX && x < viewMaxX) { 
+          visibleCandles.push(renderCandles[i]);
+        }
+      }
+
+      const priceArray = visibleCandles.length
+        ? visibleCandles.flatMap((c) => [c.high, c.low])
         : [visiblePrice, visiblePrice];
-      const maxPrice = Math.max(...priceArray, visiblePrice);
-      const minPrice = Math.min(...priceArray, visiblePrice);
-      const rawRange = maxPrice - minPrice || 1;
-      const priceBuffer = rawRange * 0.1;
-      const yMax = maxPrice + priceBuffer;
-      const yMin = minPrice - priceBuffer;
+
+      const maxVal = Math.max(...priceArray, visiblePrice);
+      const minVal = Math.min(...priceArray, visiblePrice);
+
+      const maxDiff = Math.max(Math.abs(maxVal - visiblePrice), Math.abs(minVal - visiblePrice));
+
+      const buffer = maxDiff * 0.2 || 0.0001;
+
+      const halfRange = maxDiff + buffer;
+      const yMax = visiblePrice + halfRange;
+      const yMin = visiblePrice - halfRange;
       const yRange = yMax - yMin || 1;
 
       const priceToY = (price) => {
         return padding.top + chartHeight - ((price - yMin) / yRange) * chartHeight;
       };
 
-
-      // Horizontal layout: reserve future area on the right
-      const futureRatio = 0.22;
-      const futureWidth = chartWidth * futureRatio;
-      const pastWidth = chartWidth - futureWidth;
-
-      const baseCandleWidth = Math.min(pastWidth / Math.max(renderCandles.length, 100), 12);
-      const candleWidth = baseCandleWidth * zoomRef.current;
-      const spacing = 2 * zoomRef.current;
-      const totalCandleSpan = (candleWidth + spacing) * renderCandles.length;
-
-      // Auto-scroll with time-based movement when not panning (only if we have enough candles)
-      if (!isPanningRef.current && renderCandles.length > 5) {
-        const pxPerMs = pixelsPerMsRef.current;
-        scrollOffsetRef.current -= pxPerMs * deltaMs;
-      } else if (renderCandles.length <= 5) {
-        // Keep scroll at 0 when we have few candles to ensure they're visible
-        scrollOffsetRef.current = 0;
-      }
-
-      // Clamp scroll so latest candles stay near left edge of future area
-      const maxOffset = Math.max(0, totalCandleSpan - pastWidth);
-      if (scrollOffsetRef.current < -maxOffset) scrollOffsetRef.current = -maxOffset;
-      if (scrollOffsetRef.current > 0) scrollOffsetRef.current = 0;
-
-      const indexToX = (index) => {
-        const baseX = padding.left + pastWidth - (renderCandles.length - 1 - index) * (candleWidth + spacing);
-        return baseX + scrollOffsetRef.current;
-      };
-
-      // Clear and background (uniform across entire chart like broker)
+      // 1. Clear and background
       ctx.clearRect(0, 0, width, height);
 
       const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
@@ -191,7 +212,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       ctx.fillStyle = bgGradient;
       ctx.fillRect(0, 0, width, height);
 
-      // Grid (very thin, subtle, like broker screenshot)
+      // 2. Grid (Draw grid lines spanning chart area)
       ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
       ctx.lineWidth = 0.5;
 
@@ -202,12 +223,6 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         ctx.moveTo(padding.left, y);
         ctx.lineTo(width - padding.right, y);
         ctx.stroke();
-
-        const price = yMax - (yRange / gridLines) * i;
-        ctx.fillStyle = "#A6ABB5";
-        ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
-        ctx.textAlign = "right";
-        ctx.fillText(price.toFixed(2), padding.left - 10, y + 4);
       }
 
       const verticalLines = 10;
@@ -219,12 +234,13 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         ctx.stroke();
       }
 
-      // Draw candles
+      // 3. Draw candles (The main content)
       const wickWidth = 2;
       renderCandles.forEach((candle, index) => {
         const x = indexToX(index);
 
-        if (x + candleWidth < padding.left || x > padding.left + pastWidth) {
+        // Optimization: only draw if visible and inside the chart box
+        if (x + candleWidth < padding.left || x > width - padding.right) {
           return;
         }
 
@@ -245,7 +261,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         ctx.lineTo(x + candleWidth / 2, lowY);
         ctx.stroke();
 
-        // Body with subtle rounded corners approximation
+        // Body
         ctx.fillStyle = color;
         const bodyY = Math.min(openY, closeY);
         const bodyH = Math.max(bodyHeight, 1.5);
@@ -266,8 +282,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         ctx.closePath();
         ctx.fill();
 
-        // Glow for last few candles
-        if (index >= renderCandles.length - 3) {
+        // Glow for last candle
+        if (index === renderCandles.length - 1) {
           ctx.save();
           ctx.shadowColor = color;
           ctx.shadowBlur = 12;
@@ -275,31 +291,44 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
           ctx.restore();
         }
       });
+      
+      // 4. FIX: Draw opaque background over the left padding area (where numbers are)
+      // This MUST be drawn AFTER the candles to hide the part of the candle bodies that might enter this zone.
+      ctx.fillStyle = bgGradient; // Use a similar dark color as chart background
+      ctx.fillRect(0, 0, padding.left, height); 
 
-      // Price line across entire chart:
-      //  - dashed over candle area (left)
-      //  - solid over future area (right)
+      // 5. Draw Left Price Labels (Y-Axis)
+      for (let i = 0; i <= gridLines; i++) {
+        const y = padding.top + (chartHeight / gridLines) * i;
+        const price = yMax - (yRange / gridLines) * i;
+        
+        ctx.fillStyle = "#A6ABB5"; // Gray color
+        ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillText(price.toFixed(2), padding.left - 15, y + 4); 
+      }
+
+      // 6. Price line
       const priceY = priceToY(visiblePrice);
-      const lineMidX = padding.left + pastWidth; // boundary between candles and future zone
+      const lineMidX = padding.left + pastWidth;
       const lineEndX = width - padding.right + 10;
 
-      const priceColor =
-        direction === "up" ? "#18D67D" : direction === "down" ? "#E65252" : "#6B7280";
-
+      const neutralPriceColor = "#FFD335"; 
+      
       ctx.save();
-      ctx.strokeStyle = priceColor;
+      ctx.strokeStyle = neutralPriceColor; 
       ctx.lineWidth = 2;
-      ctx.shadowColor = priceColor;
+      ctx.shadowColor = neutralPriceColor; 
       ctx.shadowBlur = 15;
 
-      // Dashed segment over left candle area
+      // Dashed segment
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
       ctx.moveTo(padding.left, priceY);
       ctx.lineTo(lineMidX, priceY);
       ctx.stroke();
 
-      // Solid segment over future area on the right
+      // Solid segment
       ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(lineMidX, priceY);
@@ -307,15 +336,17 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       ctx.stroke();
       ctx.restore();
 
-      // Price label
+      // 7. Price label (Right side)
       const labelWidth = 96;
       const labelHeight = 30;
       const labelX = width - padding.right + 5;
       const labelY = priceY - labelHeight / 2;
 
+      const labelBgColor = "#2C2F36";
+
       ctx.save();
-      ctx.fillStyle = "#2C2F36";
-      ctx.shadowColor = priceColor;
+      ctx.fillStyle = labelBgColor; 
+      ctx.shadowColor = neutralPriceColor; 
       ctx.shadowBlur = 14;
       ctx.beginPath();
       ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 6);
@@ -331,22 +362,17 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         labelY + labelHeight / 2 + 5
       );
 
-      // Timeframe label and meta info
+      // 8. Timeframe label
       ctx.fillStyle = "rgba(160, 170, 200, 0.9)";
       ctx.font = "bold 14px sans-serif";
       ctx.textAlign = "left";
       ctx.fillText(timeframe.toUpperCase(), padding.left + 10, padding.top - 12);
+      
+      // 9. Aesthetic Clean-up: Clear the right-top area (Removes the small red line artifact)
+      ctx.fillStyle = bgGradient; 
+      ctx.fillRect(width - padding.right - 2, 0, padding.right + 2, padding.top);
 
-      ctx.fillStyle = "rgba(160, 170, 200, 0.7)";
-      ctx.font = "12px sans-serif";
-      ctx.textAlign = "right";
-      ctx.fillText(
-        `${renderCandles.length} candles`,
-        width - padding.right - 10,
-        padding.top - 12
-      );
-
-      // Crosshair / hover
+      // Crosshair / hover (unchanged logic)
       const hover = hoverStateRef.current;
       if (hover && hover.x != null && hover.y != null && hover.index != null) {
         const hoverIndex = hover.index;
@@ -370,7 +396,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
           ctx.stroke();
           ctx.restore();
 
-          // Price box on Y axis
+          // Price box
           const pbWidth = 70;
           const pbHeight = 22;
           const pbX = padding.left - pbWidth - 6;
@@ -391,25 +417,6 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
             pbX + pbWidth / 2,
             pbY + pbHeight / 2 + 3
           );
-
-          // Time box on X axis
-          const tbWidth = 80;
-          const tbHeight = 22;
-          const tbX = cx - tbWidth / 2;
-          const tbY = height - padding.bottom + 6;
-
-          ctx.save();
-          ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
-          ctx.beginPath();
-          ctx.roundRect(tbX, tbY, tbWidth, tbHeight, 4);
-          ctx.fill();
-          ctx.restore();
-
-          const timeLabel = hover.time || "";
-          ctx.fillStyle = "#e5e7eb";
-          ctx.font = "11px monospace";
-          ctx.textAlign = "center";
-          ctx.fillText(timeLabel, tbX + tbWidth / 2, tbY + tbHeight / 2 + 3);
         }
       }
 
@@ -423,18 +430,24 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [currentPrice, dimensions, timeframe, direction]);
+  }, [currentPrice, dimensions, timeframe, direction]); 
 
+  // The rest of the component logic (pointer handlers, return JSX) remains unchanged
   const handlePointerMove = (event) => {
     if (!containerRef.current || !canvasRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    const padding = { top: 40, right: 100, bottom: 40, left: 60 };
+    // *UPDATE: Use the increased left padding from the draw loop logic*
+    const padding = { top: 40, right: 100, bottom: 40, left: 80 }; 
+
     const width = rect.width;
     const chartWidth = width - padding.left - padding.right;
-    const pastWidth = chartWidth * (1 - 0.22);
+
+    const futureRatio = 0.2;
+    const futureWidth = chartWidth * futureRatio;
+    const pastWidth = chartWidth - futureWidth;
 
     const renderCandles = renderCandlesRef.current;
     if (!renderCandles.length) {
@@ -442,31 +455,30 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       return;
     }
 
-    const baseCandleWidth = Math.min(pastWidth / Math.max(renderCandles.length, 50), 18);
-    const candleWidth = baseCandleWidth * zoomRef.current;
-    const spacing = 2 * zoomRef.current;
-
-    const totalCandleSpan = (candleWidth + spacing) * renderCandles.length;
-    const maxOffset = Math.max(0, totalCandleSpan - pastWidth);
-    const clampedOffset = Math.max(-maxOffset, Math.min(0, scrollOffsetRef.current));
+    const targetCandleCount = 25; 
+    const candleFullWidth = pastWidth / targetCandleCount; 
+    const candleWidth = candleFullWidth * 0.7;
+    const spacing = candleFullWidth * 0.3;
 
     const indexToX = (index) => {
-      const baseX = padding.left + pastWidth - (renderCandles.length - 1 - index) * (candleWidth + spacing);
-      return baseX + clampedOffset;
+      const baseX = padding.left + pastWidth - (renderCandles.length - 1 - index) * candleFullWidth;
+      return baseX + scrollOffsetRef.current;
     };
 
     let nearestIndex = null;
     let nearestDist = Infinity;
-    for (let i = 0; i < renderCandles.length; i++) {
-      const cx = indexToX(i) + candleWidth / 2;
-      const dist = Math.abs(cx - x);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestIndex = i;
-      }
-    }
 
-    if (nearestIndex == null) {
+    const calculatedIndex = Math.round(
+      renderCandles.length - 1 + (x - padding.left - pastWidth - scrollOffsetRef.current) / candleFullWidth
+    );
+
+    if (calculatedIndex >= 0 && calculatedIndex < renderCandles.length) {
+      nearestIndex = calculatedIndex;
+      const cx = indexToX(nearestIndex) + candleWidth / 2;
+      nearestDist = Math.abs(cx - x);
+    } 
+
+    if (nearestIndex == null || nearestDist > candleWidth) { 
       hoverStateRef.current = { x: null, y: null, price: null, index: null, time: null };
       return;
     }
@@ -537,7 +549,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     >
       <canvas ref={canvasRef} className="w-full h-full" />
 
-      {/* Loading state */}
+      {/* Loading state (unchanged) */}
       <AnimatePresence>
         {candles.length === 0 && (
           <motion.div
@@ -553,6 +565,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
           </motion.div>
         )}
       </AnimatePresence>
+      
     </div>
   );
 }

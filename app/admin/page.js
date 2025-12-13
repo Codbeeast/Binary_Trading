@@ -1,524 +1,289 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import { motion } from 'framer-motion';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Minus, 
-  Activity, 
-  Zap, 
-  Play, 
-  Pause,
-  Lock,
-  Unlock,
-  Settings,
-  XCircle,
-  Clock
-} from 'lucide-react';
+import { useEffect, useState, useRef } from "react";
+import { io } from "socket.io-client";
+import { Users, Activity, TrendingUp, TrendingDown, Power, StopCircle, RefreshCw, DollarSign } from "lucide-react";
 
-export default function AdminPanel() {
-  const [socket, setSocket] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [marketState, setMarketState] = useState({
-    direction: 'neutral',
-    volatility: 1.0,
-    tickSpeed: 300,
-    currentPrice: 100.00,
-    isActive: true,
-  });
-  const [isConnected, setIsConnected] = useState(false);
-  const [selectedTimeframe, setSelectedTimeframe] = useState('5s');
-  const [notification, setNotification] = useState(null);
-
-  useEffect(() => {
-    // Check if already authenticated
-    const auth = sessionStorage.getItem('admin_auth');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
+// Helper function to calculate percentages for the sentiment meter
+const calculateSentiment = (buy, sell) => {
+    const total = buy + sell;
+    if (total === 0) {
+        return { buyPercentage: 50, sellPercentage: 50 };
     }
-  }, []);
+    const buyPercentage = Math.round((buy / total) * 100);
+    const sellPercentage = 100 - buyPercentage; // Ensures total is exactly 100
+    return { buyPercentage, sellPercentage };
+};
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    // Connect to Socket.IO server
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
-    const newSocket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
+export default function AdminPage() {
+    const [socket, setSocket] = useState(null);
+    const [isConnected, setIsConnected] = useState(false);
+    const [marketState, setMarketState] = useState({
+        direction: 'neutral',
+        volatility: 1.0,
+        tickSpeed: 300,
+        isActive: true,
+    });
+    const [stats, setStats] = useState({
+        activeUsers: 0,
+        totalTrades: 0,
+        buyCount: 0,
+        sellCount: 0,
+        buyVolume: 0,
+        sellVolume: 0,
     });
 
-    newSocket.on('connect', () => {
-      console.log('✅ Admin connected to server');
-      setIsConnected(true);
-    });
+    // Calculate sentiment percentages
+    const { buyPercentage, sellPercentage } = calculateSentiment(stats.buyCount, stats.sellCount);
 
-    newSocket.on('disconnect', () => {
-      console.log('❌ Admin disconnected from server');
-      setIsConnected(false);
-    });
+    useEffect(() => {
+        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+        const newSocket = io(socketUrl, {
+            transports: ['websocket', 'polling'],
+        });
 
-    newSocket.on('market_state', (state) => {
-      console.log('📊 Market state received:', state);
-      setMarketState(state);
-    });
+        newSocket.on('connect', () => {
+            console.log('✅ Admin Connected');
+            setIsConnected(true);
+            newSocket.emit('request_stats'); // Initial fetch
+        });
 
-    newSocket.on('candle_closed', (data) => {
-      console.log('🔔 Candle closed:', data);
-      setNotification(data);
-      setTimeout(() => setNotification(null), 3000);
-    });
+        newSocket.on('disconnect', () => {
+            console.log('❌ Admin Disconnected');
+            setIsConnected(false);
+        });
 
-    setSocket(newSocket);
+        newSocket.on('market_state', (state) => {
+            setMarketState(state);
+        });
 
-    return () => {
-      newSocket.close();
+        newSocket.on('stats_update', (newStats) => {
+            console.log('Stats received:', newStats);
+            setStats(newStats);
+        });
+
+        newSocket.on('candle_closed', (data) => {
+            alert(`Candle closed for ${data.timeframe}: ${data.success ? 'Success' : 'Failed'}`);
+        });
+
+        setSocket(newSocket);
+
+        return () => newSocket.close();
+    }, []);
+
+    const handleControlUpdate = (field, value) => {
+        if (!socket) return;
+        const updates = { [field]: value };
+        // Update local state immediately for better UX (optional)
+        setMarketState(prev => ({ ...prev, [field]: value }));
+
+        // Send the update to the backend server
+        socket.emit('control_update', updates);
     };
-  }, [isAuthenticated]);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    // Simple password check (in production, use proper authentication)
-    if (password === 'admin123') {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('admin_auth', 'true');
-    } else {
-      alert('Invalid password');
+    // MODIFIED: Removed the confirmation prompt
+    const handleForceCloseCandle = (timeframe) => {
+        if (!socket) return;
+
+        // Send the force close command without confirmation
+        socket.emit('force_close_candle', { timeframe });
     }
-  };
 
-  const handleControlUpdate = (updates) => {
-    if (socket && isConnected) {
-      socket.emit('control_update', updates);
-      console.log('🎮 Sent control update:', updates);
-    }
-  };
-
-  const setDirection = (direction) => {
-    handleControlUpdate({ direction });
-  };
-
-  const setVolatility = (volatility) => {
-    handleControlUpdate({ volatility: parseFloat(volatility) });
-  };
-
-  const setTickSpeed = (tickSpeed) => {
-    handleControlUpdate({ tickSpeed: parseInt(tickSpeed) });
-  };
-
-  const toggleActive = () => {
-    handleControlUpdate({ isActive: !marketState.isActive });
-  };
-
-  const forceCloseCandle = (timeframe) => {
-    console.log('🔒 Force close button clicked for:', timeframe);
-    console.log('Socket exists:', !!socket);
-    console.log('Is connected:', isConnected);
-    
-    if (!socket) {
-      console.error('❌ Socket not initialized');
-      setNotification({ success: false, message: 'Socket not connected' });
-      return;
-    }
-    
-    if (!isConnected) {
-      console.error('❌ Not connected to server');
-      setNotification({ success: false, message: 'Not connected to server' });
-      return;
-    }
-    
-    socket.emit('force_close_candle', { timeframe });
-    console.log('✅ Emitted force_close_candle event for:', timeframe);
-  };
-
-  const timeframes = [
-    { value: '1s', label: '1 Second' },
-    { value: '5s', label: '5 Seconds' },
-    { value: '15s', label: '15 Seconds' },
-    { value: '30s', label: '30 Seconds' },
-    { value: '1m', label: '1 Minute' },
-  ];
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    sessionStorage.removeItem('admin_auth');
-    if (socket) {
-      socket.close();
-    }
-  };
-
-  // Login screen
-  if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="chart-container p-8 max-w-md w-full"
-        >
-          <div className="text-center mb-8">
-            <div className="inline-block p-4 bg-purple-500/20 rounded-2xl mb-4">
-              <Lock className="w-12 h-12 text-purple-400" />
+        <main className="min-h-screen bg-[#0F1115] text-[#E3E5E8] p-6 font-sans">
+            <header className="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+                        Admin Dashboard
+                    </h1>
+                    <p className="text-gray-400 text-sm mt-1">Real-time market control and monitoring</p>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${isConnected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                    {isConnected ? 'System Online' : 'System Offline'}
+                </div>
+            </header>
+
+            {/* Top Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="bg-[#16181D] border border-[#272A32] p-4 rounded-xl">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400"><Users size={20} /></div>
+                        <span className="text-gray-400 text-sm">Active Users</span>
+                    </div>
+                    <div className="text-2xl font-bold">{stats.activeUsers}</div>
+                </div>
+                <div className="bg-[#16181D] border border-[#272A32] p-4 rounded-xl">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400"><Activity size={20} /></div>
+                        <span className="text-gray-400 text-sm">Total Trades</span>
+                    </div>
+                    <div className="text-2xl font-bold">{stats.totalTrades}</div>
+                </div>
+                <div className="bg-[#16181D] border border-[#272A32] p-4 rounded-xl">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400"><DollarSign size={20} /></div>
+                        <span className="text-gray-400 text-sm">Volume (Buy)</span>
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-400">₹{stats.buyVolume}</div>
+                </div>
+                <div className="bg-[#16181D] border border-[#272A32] p-4 rounded-xl">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-rose-500/10 rounded-lg text-rose-400"><DollarSign size={20} /></div>
+                        <span className="text-gray-400 text-sm">Volume (Sell)</span>
+                    </div>
+                    <div className="text-2xl font-bold text-rose-400">₹{stats.sellVolume}</div>
+                </div>
             </div>
-            <h1 className="text-3xl font-bold mb-2">Admin Access</h1>
-            <p className="text-gray-400">Enter password to access control panel</p>
-          </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:border-purple-500 transition-colors"
-                placeholder="Enter admin password"
-                autoFocus
-              />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+                {/* Left Col: Live Sentiment & Controls */}
+                <div className="space-y-6 mt-3">
+                    {/* Sentiment Meter */}
+                    <section className="bg-[#16181D] border border-[#272A32] rounded-xl p-6">
+                        <h2 className="text-lg font-semibold mb-4 text-white">Live Sentiment Analysis</h2>
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-emerald-400 font-medium">Buy {buyPercentage}%</span>
+                            <span className="text-rose-400 font-medium">Sell {sellPercentage}%</span>
+                        </div>
+                        <div className="h-4 w-full bg-[#1F2933] rounded-full overflow-hidden flex">
+                            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${buyPercentage}%` }}></div>
+                            <div className="h-full bg-rose-500 transition-all duration-500" style={{ width: `${sellPercentage}%` }}></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mt-6">
+                            <div className="bg-[#1C1F27] p-4 rounded-lg border border-[#2C303A]">
+                                <div className="text-sm text-gray-400 mb-1">Buy Orders</div>
+                                <div className="text-xl font-bold text-emerald-400">{stats.buyCount}</div>
+                            </div>
+                            <div className="bg-[#1C1F27] p-4 rounded-lg border border-[#2C303A]">
+                                <div className="text-sm text-gray-400 mb-1">Sell Orders</div>
+                                <div className="text-xl font-bold text-rose-400">{stats.sellCount}</div>
+                            </div>
+                        </div>
+                    </section>
+
+                   
+                </div>
+
+                {/* Right Col: Market Configuration */}
+                <div className="space-y-6">
+                    <section className="bg-[#16181D] border border-[#272A32] rounded-xl p-6">
+                        <h2 className="text-lg font-semibold mb-6 text-white flex items-center gap-2">
+                            <RefreshCw size={18} className="text-indigo-400" />
+                            Market Configuration
+                        </h2>
+
+                        <div className="space-y-6">
+                            {/* Market Status */}
+                            <div className="flex items-center justify-between p-4 bg-[#1C1F27] rounded-lg border border-[#2C303A]">
+                                <div>
+                                    <div className="font-medium text-white mb-1">Market Status</div>
+                                    <div className="text-sm text-gray-400">Enable/Disable market data generation</div>
+                                </div>
+                                <button
+                                    onClick={() => handleControlUpdate('isActive', !marketState.isActive)}
+                                    className={`w-12 h-6 rounded-full transition-colors relative ${marketState.isActive ? 'bg-emerald-500' : 'bg-gray-600'}`}
+                                >
+                                    <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all transform ${marketState.isActive ? 'left-7' : 'left-1'}`} />
+                                </button>
+                            </div>
+
+                            {/* Market Direction */}
+                            <div className="space-y-3">
+                                <label className="text-sm font-medium text-gray-300">Market Bias (Direction)</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        onClick={() => handleControlUpdate('direction', 'up')}
+                                        className={`py-2 rounded-md font-medium text-sm transition-all border ${marketState.direction === 'up' ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-[#1C1F27] text-gray-400 border-[#2C303A]'}`}
+                                    >
+                                        Bullish (Up)
+                                    </button>
+                                    <button
+                                        onClick={() => handleControlUpdate('direction', 'neutral')}
+                                        className={`py-2 rounded-md font-medium text-sm transition-all border ${marketState.direction === 'neutral' ? 'bg-blue-500 text-black border-blue-500' : 'bg-[#1C1F27] text-gray-400 border-[#2C303A]'}`}
+                                    >
+                                        Neutral
+                                    </button>
+                                    <button
+                                        onClick={() => handleControlUpdate('direction', 'down')}
+                                        className={`py-2 rounded-md font-medium text-sm transition-all border ${marketState.direction === 'down' ? 'bg-rose-500 text-black border-rose-500' : 'bg-[#1C1F27] text-gray-400 border-[#2C303A]'}`}
+                                    >
+                                        Bearish (Down)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Volatility */}
+                            {/* <div className="space-y-3">
+                                <div className="flex justify-between">
+                                    <label className="text-sm font-medium text-gray-300">Volatility Index</label>
+                                    <span className="text-sm text-indigo-400 font-bold">{marketState.volatility}x</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0.1"
+                                    max="5.0"
+                                    step="0.1"
+                                    value={marketState.volatility}
+                                    onChange={(e) => handleControlUpdate('volatility', parseFloat(e.target.value))}
+                                    className="w-full h-2 bg-[#2C303A] rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                />
+                                <div className="flex justify-between text-xs text-gray-500">
+                                    <span>Stable</span>
+                                    <span>Highly Volatile</span>
+                                </div>
+                            </div> */}
+
+                            {/* Tick Speed
+                            <div className="space-y-3">
+                                <div className="flex justify-between">
+                                    <label className="text-sm font-medium text-gray-300">Tick Speed (Update Rate)</label>
+                                    <span className="text-sm text-indigo-400 font-bold">{marketState.tickSpeed}ms</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="100"
+                                    max="1000"
+                                    step="50"
+                                    value={marketState.tickSpeed}
+                                    onChange={(e) => handleControlUpdate('tickSpeed', parseInt(e.target.value))}
+                                    className="w-full h-2 bg-[#2C303A] rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                />
+                                <div className="flex justify-between text-xs text-gray-500">
+                                    <span>Fast (100ms)</span>
+                                    <span>Slow (1000ms)</span>
+                                </div>
+                            </div> */}
+                        </div>
+                    </section>
+                </div>
+                
             </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg font-semibold transition-all transform hover:scale-105"
-            >
-              Login
-            </button>
-
-            <p className="text-sm text-gray-500 text-center">
-              Default password: <code className="text-purple-400">admin123</code>
-            </p>
-          </form>
-        </motion.div>
-      </div>
+             {/* Critical Actions */}
+                    <section className="bg-[#16181D] border border-[#272A32] rounded-xl mt-8 p-6">
+                        <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
+                            <StopCircle size={18} className="text-red-500" />
+                            Emergency Controls
+                        </h2>
+                        <div className="grid grid-cols-2 gap-4">
+                            <button
+                                onClick={() => handleForceCloseCandle('5s')}
+                                className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-400 py-3 rounded-lg font-semibold transition-all active:scale-95 flex flex-col items-center gap-1"
+                            >
+                                <span>Stop 5s Candle</span>
+                                <span className="text-[10px] opacity-70">Force Close Immediately</span>
+                            </button>
+                            <button
+                                onClick={() => handleForceCloseCandle('1m')}
+                                className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-400 py-3 rounded-lg font-semibold transition-all active:scale-95 flex flex-col items-center gap-1"
+                            >
+                                <span>Stop 1m Candle</span>
+                                <span className="text-[10px] opacity-70">Force Close Immediately</span>
+                            </button>
+                            {/* Add more timeframes as needed */}
+                        </div>
+                    </section>
+        </main>
     );
-  }
-
-  // Admin panel
-  return (
-    <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-xl">
-              <Settings className="w-8 h-8 text-purple-400" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                Admin Control Panel
-              </h1>
-              <p className="text-gray-400 text-sm">Full market control and configuration</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Connection Status */}
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-              <span className="text-sm text-gray-400">
-                {isConnected ? 'Connected' : 'Disconnected'}
-              </span>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition-all flex items-center gap-2"
-            >
-              <Unlock className="w-4 h-4" />
-              Logout
-            </button>
-          </div>
-        </div>
-
-        {/* Current Status */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="chart-container p-6"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <Activity className="w-5 h-5 text-blue-400" />
-              <span className="text-sm text-gray-400">Current Price</span>
-            </div>
-            <div className="text-3xl font-bold font-mono">
-              ${marketState.currentPrice.toFixed(2)}
-            </div>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="chart-container p-6"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <TrendingUp className="w-5 h-5 text-green-400" />
-              <span className="text-sm text-gray-400">Direction</span>
-            </div>
-            <div className="text-2xl font-bold capitalize">
-              {marketState.direction}
-            </div>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="chart-container p-6"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <Zap className="w-5 h-5 text-yellow-400" />
-              <span className="text-sm text-gray-400">Volatility</span>
-            </div>
-            <div className="text-3xl font-bold">
-              {marketState.volatility.toFixed(1)}x
-            </div>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ scale: 1.02 }}
-            className="chart-container p-6"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              {marketState.isActive ? (
-                <Play className="w-5 h-5 text-green-400" />
-              ) : (
-                <Pause className="w-5 h-5 text-red-400" />
-              )}
-              <span className="text-sm text-gray-400">Status</span>
-            </div>
-            <div className={`text-2xl font-bold ${marketState.isActive ? 'text-green-400' : 'text-red-400'}`}>
-              {marketState.isActive ? 'Active' : 'Paused'}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Controls */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Market Direction Control */}
-          <div className="chart-container p-6">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <TrendingUp className="w-6 h-6" />
-              Market Direction
-            </h2>
-
-            <div className="space-y-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setDirection('up')}
-                className={`w-full p-6 rounded-xl font-semibold text-lg transition-all ${
-                  marketState.direction === 'up'
-                    ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg glow-green'
-                    : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 border border-gray-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span>📈 Bullish (UP)</span>
-                  {marketState.direction === 'up' && (
-                    <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
-                  )}
-                </div>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setDirection('neutral')}
-                className={`w-full p-6 rounded-xl font-semibold text-lg transition-all ${
-                  marketState.direction === 'neutral'
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg glow-blue'
-                    : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 border border-gray-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span>➡️ Neutral</span>
-                  {marketState.direction === 'neutral' && (
-                    <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
-                  )}
-                </div>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setDirection('down')}
-                className={`w-full p-6 rounded-xl font-semibold text-lg transition-all ${
-                  marketState.direction === 'down'
-                    ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg glow-red'
-                    : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 border border-gray-700'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span>📉 Bearish (DOWN)</span>
-                  {marketState.direction === 'down' && (
-                    <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
-                  )}
-                </div>
-              </motion.button>
-            </div>
-          </div>
-
-          {/* Advanced Controls */}
-          <div className="space-y-6">
-            {/* Volatility Control */}
-            <div className="chart-container p-6">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Zap className="w-6 h-6" />
-                Volatility
-              </h2>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Current:</span>
-                  <span className="text-2xl font-bold">{marketState.volatility.toFixed(1)}x</span>
-                </div>
-
-                <input
-                  type="range"
-                  min="0.1"
-                  max="5.0"
-                  step="0.1"
-                  value={marketState.volatility}
-                  onChange={(e) => setVolatility(e.target.value)}
-                  className="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-500"
-                />
-
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>0.1x (Calm)</span>
-                  <span>5.0x (Extreme)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Tick Speed Control */}
-            <div className="chart-container p-6">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Activity className="w-6 h-6" />
-                Tick Speed
-              </h2>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Interval:</span>
-                  <span className="text-2xl font-bold">{marketState.tickSpeed}ms</span>
-                </div>
-
-                <input
-                  type="range"
-                  min="100"
-                  max="1000"
-                  step="50"
-                  value={marketState.tickSpeed}
-                  onChange={(e) => setTickSpeed(e.target.value)}
-                  className="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                />
-
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>100ms (Fast)</span>
-                  <span>1000ms (Slow)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Pause/Resume Control */}
-        <div className="mt-6">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={toggleActive}
-            className={`w-full p-8 rounded-xl font-bold text-xl transition-all ${
-              marketState.isActive
-                ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
-                : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
-            }`}
-          >
-            <div className="flex items-center justify-center gap-3">
-              {marketState.isActive ? (
-                <>
-                  <Pause className="w-8 h-8" />
-                  <span>Pause Market</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-8 h-8" />
-                  <span>Resume Market</span>
-                </>
-              )}
-            </div>
-          </motion.button>
-        </div>
-
-        {/* Candle Control Section */}
-        <div className="mt-6 chart-container p-6">
-          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-            <XCircle className="w-6 h-6 text-orange-400" />
-            Manual Candle Control
-          </h2>
-          
-          <p className="text-gray-400 mb-6">
-            Force close the current candle for any timeframe. The chart will continue with market data, but you can close candles manually whenever needed.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {timeframes.map((tf) => (
-              <motion.button
-                key={tf.value}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => forceCloseCandle(tf.value)}
-                className="p-6 bg-gradient-to-br from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl"
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <Clock className="w-8 h-8" />
-                  <span className="text-lg">{tf.label}</span>
-                  <span className="text-xs opacity-75">Close Now</span>
-                </div>
-              </motion.button>
-            ))}
-          </div>
-
-          <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-            <p className="text-sm text-blue-300">
-              💡 <strong>Tip:</strong> Closing a candle will immediately complete it at the current price and start a new candle. The market data continues to flow normally.
-            </p>
-          </div>
-        </div>
-
-        {/* Notification Toast */}
-        {notification && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className={`fixed bottom-8 right-8 p-6 rounded-xl shadow-2xl ${
-              notification.success
-                ? 'bg-gradient-to-r from-green-600 to-green-700'
-                : 'bg-gradient-to-r from-red-600 to-red-700'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              {notification.success ? (
-                <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
-              ) : (
-                <XCircle className="w-6 h-6" />
-              )}
-              <span className="font-semibold">{notification.message}</span>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Back to Chart */}
-        <div className="mt-6 text-center">
-          <Link
-            href="/"
-            className="inline-block px-8 py-4 bg-gray-800 hover:bg-gray-700 rounded-lg font-semibold transition-all"
-          >
-            ← Back to Chart
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
 }
