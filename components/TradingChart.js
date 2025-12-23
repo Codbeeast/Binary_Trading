@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function TradingChart({ candles, currentPrice, timeframe, direction }) {
+export default function TradingChart({ candles, currentPrice, timeframe, direction, activeTrades = [] }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -112,7 +112,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
     // *ENHANCEMENT: Increased padding for left price labels to hide candles*
     const padding = { top: 40, right: 100, bottom: 40, left: 80 }; // Increased left padding
-    
+
     const updateAndDraw = (timestamp) => {
       const width = dimensions.width;
       const height = dimensions.height;
@@ -155,17 +155,17 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       }
 
       // Layout calculations (unchanged)
-      const futureRatio = 0.2; 
+      const futureRatio = 0.2;
       const futureWidth = chartWidth * futureRatio;
       const pastWidth = chartWidth - futureWidth;
 
-      const targetCandleCount = 25; 
-      const candleFullWidth = pastWidth / targetCandleCount; 
-      const candleWidth = candleFullWidth * 0.7; 
-      const spacing = candleFullWidth * 0.3; 
-      
+      const targetCandleCount = 25;
+      const candleFullWidth = pastWidth / targetCandleCount;
+      const candleWidth = candleFullWidth * 0.7;
+      const spacing = candleFullWidth * 0.3;
+
       const totalCandleSpan = (candleWidth + spacing) * renderCandles.length;
-      
+
       const indexToX = (index) => {
         const baseX = padding.left + pastWidth - (renderCandles.length - 1 - index) * candleFullWidth;
         return baseX + scrollOffsetRef.current;
@@ -173,12 +173,12 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
       // Price range calculation (unchanged)
       const visibleCandles = [];
-      const viewMinX = padding.left - candleWidth; 
+      const viewMinX = padding.left - candleWidth;
       const viewMaxX = width - padding.right + candleWidth;
 
       for (let i = 0; i < renderCandles.length; i++) {
         const x = indexToX(i);
-        if (x + candleFullWidth > viewMinX && x < viewMaxX) { 
+        if (x + candleFullWidth > viewMinX && x < viewMaxX) {
           visibleCandles.push(renderCandles[i]);
         }
       }
@@ -291,21 +291,21 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
           ctx.restore();
         }
       });
-      
+
       // 4. FIX: Draw opaque background over the left padding area (where numbers are)
       // This MUST be drawn AFTER the candles to hide the part of the candle bodies that might enter this zone.
       ctx.fillStyle = bgGradient; // Use a similar dark color as chart background
-      ctx.fillRect(0, 0, padding.left, height); 
+      ctx.fillRect(0, 0, padding.left, height);
 
       // 5. Draw Left Price Labels (Y-Axis)
       for (let i = 0; i <= gridLines; i++) {
         const y = padding.top + (chartHeight / gridLines) * i;
         const price = yMax - (yRange / gridLines) * i;
-        
+
         ctx.fillStyle = "#A6ABB5"; // Gray color
         ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
         ctx.textAlign = "right";
-        ctx.fillText(price.toFixed(2), padding.left - 15, y + 4); 
+        ctx.fillText(price.toFixed(2), padding.left - 15, y + 4);
       }
 
       // 6. Price line
@@ -313,12 +313,12 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       const lineMidX = padding.left + pastWidth;
       const lineEndX = width - padding.right + 10;
 
-      const neutralPriceColor = "#FFD335"; 
-      
+      const neutralPriceColor = "#FFD335";
+
       ctx.save();
-      ctx.strokeStyle = neutralPriceColor; 
+      ctx.strokeStyle = neutralPriceColor;
       ctx.lineWidth = 2;
-      ctx.shadowColor = neutralPriceColor; 
+      ctx.shadowColor = neutralPriceColor;
       ctx.shadowBlur = 15;
 
       // Dashed segment
@@ -345,8 +345,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       const labelBgColor = "#2C2F36";
 
       ctx.save();
-      ctx.fillStyle = labelBgColor; 
-      ctx.shadowColor = neutralPriceColor; 
+      ctx.fillStyle = labelBgColor;
+      ctx.shadowColor = neutralPriceColor;
       ctx.shadowBlur = 14;
       ctx.beginPath();
       ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 6);
@@ -367,10 +367,57 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       ctx.font = "bold 14px sans-serif";
       ctx.textAlign = "left";
       ctx.fillText(timeframe.toUpperCase(), padding.left + 10, padding.top - 12);
-      
+
       // 9. Aesthetic Clean-up: Clear the right-top area (Removes the small red line artifact)
-      ctx.fillStyle = bgGradient; 
+      ctx.fillStyle = bgGradient;
       ctx.fillRect(width - padding.right - 2, 0, padding.right + 2, padding.top);
+
+      // 10. Draw Active Trades
+      if (activeTrades && activeTrades.length > 0) {
+        activeTrades.forEach(trade => {
+          const y = priceToY(trade.entryPrice);
+          const isUp = trade.direction === 'up';
+          const color = isUp ? "#10B981" : "#F43F5E"; // Emerald / Rose
+
+          // Draw horizontal line
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 3]);
+
+          ctx.beginPath();
+          ctx.moveTo(padding.left, y);
+          ctx.lineTo(width - padding.right, y);
+          ctx.stroke();
+
+          // Draw Direction Marker
+          const markerX = width - padding.right + 10;
+          const markerSize = 14;
+
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          if (isUp) {
+            ctx.moveTo(markerX, y + markerSize / 2);
+            ctx.lineTo(markerX + markerSize, y + markerSize / 2);
+            ctx.lineTo(markerX + markerSize / 2, y - markerSize / 2);
+          } else {
+            ctx.moveTo(markerX, y - markerSize / 2);
+            ctx.lineTo(markerX + markerSize, y - markerSize / 2);
+            ctx.lineTo(markerX + markerSize / 2, y + markerSize / 2);
+          }
+          ctx.closePath();
+          ctx.fill();
+
+          // Entry point dot
+          const dotX = width - padding.right;
+          ctx.beginPath();
+          ctx.arc(dotX, y, 3, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+
+          ctx.restore();
+        });
+      }
 
       // Crosshair / hover (unchanged logic)
       const hover = hoverStateRef.current;
@@ -430,7 +477,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [currentPrice, dimensions, timeframe, direction]); 
+  }, [currentPrice, dimensions, timeframe, direction]);
 
   // The rest of the component logic (pointer handlers, return JSX) remains unchanged
   const handlePointerMove = (event) => {
@@ -440,7 +487,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     const y = event.clientY - rect.top;
 
     // *UPDATE: Use the increased left padding from the draw loop logic*
-    const padding = { top: 40, right: 100, bottom: 40, left: 80 }; 
+    const padding = { top: 40, right: 100, bottom: 40, left: 80 };
 
     const width = rect.width;
     const chartWidth = width - padding.left - padding.right;
@@ -455,8 +502,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       return;
     }
 
-    const targetCandleCount = 25; 
-    const candleFullWidth = pastWidth / targetCandleCount; 
+    const targetCandleCount = 25;
+    const candleFullWidth = pastWidth / targetCandleCount;
     const candleWidth = candleFullWidth * 0.7;
     const spacing = candleFullWidth * 0.3;
 
@@ -476,9 +523,9 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       nearestIndex = calculatedIndex;
       const cx = indexToX(nearestIndex) + candleWidth / 2;
       nearestDist = Math.abs(cx - x);
-    } 
+    }
 
-    if (nearestIndex == null || nearestDist > candleWidth) { 
+    if (nearestIndex == null || nearestDist > candleWidth) {
       hoverStateRef.current = { x: null, y: null, price: null, index: null, time: null };
       return;
     }
@@ -565,7 +612,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
           </motion.div>
         )}
       </AnimatePresence>
-      
+
     </div>
   );
 }

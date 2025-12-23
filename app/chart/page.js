@@ -30,16 +30,85 @@ export default function Home() {
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
   const isHistoryLoadedRef = useRef(false); // Ref to avoid stale closures in socket listeners
 
+  const [activeTrades, setActiveTrades] = useState([]);
+  const [tradeResults, setTradeResults] = useState([]);
+
   const tickCountRef = useRef(0);
   const priceHistoryRef = useRef([]);
   const blockedTimestampRef = useRef(null);
 
+  // Trade timer & expiry check
+  useEffect(() => {
+    if (activeTrades.length === 0) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+
+      setActiveTrades(prevTrades => {
+        const remaining = [];
+        const expired = [];
+
+        prevTrades.forEach(trade => {
+          if (now >= trade.expiryTime) {
+            expired.push(trade);
+          } else {
+            remaining.push(trade);
+          }
+        });
+
+        if (expired.length > 0) {
+          // Process expired trades
+          expired.forEach(trade => {
+            const exitPrice = currentPrice; // Use latest price as exit
+            const isProfit = (trade.direction === 'up' && exitPrice > trade.entryPrice) ||
+              (trade.direction === 'down' && exitPrice < trade.entryPrice);
+
+            const result = {
+              id: trade.id,
+              result: isProfit ? 'PROFIT' : 'LOSS',
+              amount: isProfit ? trade.amount * 1.82 : 0,
+              entryPrice: trade.entryPrice,
+              exitPrice: exitPrice,
+              direction: trade.direction
+            };
+
+            setTradeResults(prev => [...prev, result]);
+
+            setTimeout(() => {
+              setTradeResults(prev => prev.filter(r => r.id !== trade.id));
+            }, 4000);
+          });
+        }
+
+        return remaining;
+      });
+
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [activeTrades, currentPrice]);
+
   const handleTrade = (direction) => {
+    // START TRADE LOGIC
+    const durationSeconds = 50;
+    const newTrade = {
+      id: Date.now() + Math.random(),
+      direction,
+      amount: 100,
+      entryPrice: currentPrice,
+      startTime: Date.now(),
+      expiryTime: Date.now() + (durationSeconds * 1000),
+      duration: durationSeconds
+    };
+
+    console.log(`💰 Placing ${direction} trade...`, newTrade);
+    setActiveTrades(prev => [...prev, newTrade]);
+
+    // Optional: Keep socket emit if needed
     if (socket && isConnected) {
-      console.log(`💰 Placing ${direction} trade...`);
       socket.emit('place_trade', {
         direction,
-        amount: 100, // Hardcoded for now, or use state if available
+        amount: 100,
         timeframe: selectedTimeframe,
       });
     }
@@ -330,6 +399,35 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Active Trade Timers */}
+            <div className="absolute left-4 top-20 z-20 flex flex-col gap-2">
+              {activeTrades.map(trade => {
+                const timeLeft = Math.max(0, Math.ceil((trade.expiryTime - Date.now()) / 1000));
+                // Only show if > 0
+                if (timeLeft <= 0) return null;
+
+                return (
+                  <div key={trade.id} className={`
+                    flex items-center gap-3 px-3 py-2 rounded-lg backdrop-blur-md border border-white/10 shadow-lg min-w-[140px]
+                    ${trade.direction === 'up' ? 'bg-[#064e3b]/80 border-l-4 border-l-emerald-500' : 'bg-[#4c0519]/80 border-l-4 border-l-rose-500'}
+                  `}>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
+                        {trade.direction === 'up' ? 'BUY' : 'SELL'}
+                      </span>
+                      <span className="text-sm font-bold text-white font-mono">
+                        {timeLeft}s
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end flex-1">
+                      <span className="text-[10px] text-white/70">Inv.</span>
+                      <span className="text-xs font-semibold text-white">₹{trade.amount}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             {/* Right-side circular timer elements */}
             <div className="absolute right-6 top-[100px] -translate-y-1/2 flex flex-col items-center gap-3 z-20">
               {/* Grey circle */}
@@ -368,6 +466,7 @@ export default function Home() {
                   currentPrice={currentPrice}
                   timeframe={selectedTimeframe}
                   direction={marketState.direction}
+                  activeTrades={activeTrades}
                 />
 
                 {/* Bottom-left floating yellow banner */}
@@ -384,6 +483,36 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
+
+                {/* Trade Results Popup */}
+                {tradeResults.map(result => (
+                  <div key={result.id} className="absolute bottom-20 right-4 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className={`
+                      flex items-center gap-4 px-6 py-4 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] border
+                      ${result.result === 'PROFIT'
+                        ? 'bg-[#1C2A20] border-emerald-500/50'
+                        : 'bg-[#2A1C1C] border-rose-500/50'}
+                    `}>
+                      <div className={`
+                        flex items-center justify-center w-10 h-10 rounded-full font-bold
+                        ${result.result === 'PROFIT' ? 'bg-emerald-500 text-black' : 'bg-rose-500 text-white'}
+                      `}>
+                        {result.result === 'PROFIT' ? '+$' : '-$'}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className={`text-sm font-bold ${result.result === 'PROFIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {result.result}
+                        </span>
+                        <span className="text-xl font-bold text-white">
+                          {result.result === 'PROFIT' ? `+₹${result.amount.toFixed(2)}` : '₹0.00'}
+                        </span>
+                        <span className="text-[10px] text-gray-400 mt-1">
+                          {result.entryPrice.toFixed(2)} ➔ {result.exitPrice.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
 
                 {/* Zoom controls bottom-center */}
                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex items-center justify-center">
