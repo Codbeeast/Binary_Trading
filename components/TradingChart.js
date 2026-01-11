@@ -678,7 +678,12 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         const remain = Math.max(0, duration - elapsed);
 
         // Format MM:SS
-        const totalSeconds = Math.ceil(remain / 1000);
+        let totalSeconds = Math.ceil(remain / 1000);
+
+        // Clamp to max duration to avoid showing e.g. 6s or 7s for a 5s candle (due to clock drift)
+        const maxSeconds = duration / 1000;
+        if (totalSeconds > maxSeconds) totalSeconds = maxSeconds;
+
         const mm = Math.floor(totalSeconds / 60);
         const ss = totalSeconds % 60;
         const text = `${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`;
