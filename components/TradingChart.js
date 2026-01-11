@@ -285,7 +285,12 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       const pastWidth = chartWidth - futureWidth;
 
       const zoom = zoomRef.current || 1.0;
-      const targetCandleCount = 70 * zoom; // Reduced from 110 to 70 (User request: Wider candles, less density)
+
+      // Dynamic candle count based on screen width
+      const isMobile = width < 768;
+      const baseCandleCount = isMobile ? 28 : 70; // Even fewer candles on mobile = Wider candles
+      const targetCandleCount = baseCandleCount * zoom;
+
       const candleFullWidth = pastWidth / targetCandleCount;
       const candleWidth = candleFullWidth * 0.70; // Slightly wider (User request)
       const spacing = candleFullWidth * 0.30;
@@ -321,7 +326,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       // This allows the price line to move up/down naturally within the screen.
 
       const range = maxVal - minVal;
-      const paddingFactor = 0.1; // 10% padding above/below extremes (Reduced for tighter zoom)
+      // Increased padding factor to 0.3 (User request: "decrease length", i.e., zoom out vertically)
+      const paddingFactor = 0.3;
       let targetMax = maxVal + range * paddingFactor;
       let targetMin = minVal - range * paddingFactor;
 
@@ -419,7 +425,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       }
 
       // 3. Draw candles (The main content)
-      const wickWidth = 1.5;
+      const wickWidth = 2.0;
       const MIN_BODY_HEIGHT = 2; // Minimum visible body height in pixels
 
       // Helper for deterministic noise (seeded by timestamp)
