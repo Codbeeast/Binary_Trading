@@ -15,15 +15,20 @@ const calculateSentiment = (buy, sell) => {
     return { buyPercentage, sellPercentage };
 };
 
+import AssetSelector from "@/components/AssetSelector";
+
 export default function AdminPage() {
     const [socket, setSocket] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
+    const [selectedAsset, setSelectedAsset] = useState('BTCUSDT');
     const [marketState, setMarketState] = useState({
         direction: 'neutral',
         volatility: 1.0,
         tickSpeed: 300,
         isActive: true,
+        symbol: 'BTCUSDT'
     });
+    // ... existing stats state ...
     const [stats, setStats] = useState({
         activeUsers: 0,
         totalTrades: 0,
@@ -46,6 +51,7 @@ export default function AdminPage() {
             console.log('✅ Admin Connected');
             setIsConnected(true);
             newSocket.emit('request_stats'); // Initial fetch
+            newSocket.emit('subscribe', selectedAsset); // Subscribe to selected asset to get its state
         });
 
         newSocket.on('disconnect', () => {
@@ -54,7 +60,9 @@ export default function AdminPage() {
         });
 
         newSocket.on('market_state', (state) => {
-            setMarketState(state);
+            if (state.symbol === selectedAsset) {
+                setMarketState(state);
+            }
         });
 
         newSocket.on('stats_update', (newStats) => {
@@ -69,12 +77,12 @@ export default function AdminPage() {
         setSocket(newSocket);
 
         return () => newSocket.close();
-    }, []);
+    }, [selectedAsset]); // Re-connect or re-subscribe when asset changes
 
     const handleControlUpdate = (field, value) => {
         if (!socket) return;
-        const updates = { [field]: value };
-        // Update local state immediately for better UX (optional)
+        const updates = { [field]: value, symbol: selectedAsset };
+        // Update local state immediately for better UX
         setMarketState(prev => ({ ...prev, [field]: value }));
 
         // Send the update to the backend server
@@ -84,9 +92,7 @@ export default function AdminPage() {
     // MODIFIED: Removed the confirmation prompt
     const handleForceCloseCandle = (timeframe) => {
         if (!socket) return;
-
-        // Send the force close command without confirmation
-        socket.emit('force_close_candle', { timeframe });
+        socket.emit('force_close_candle', { timeframe, symbol: selectedAsset });
     }
 
     return (
@@ -99,8 +105,20 @@ export default function AdminPage() {
                     </h1>
                     <p className="text-gray-400 text-sm mt-1">Real-time market control and monitoring</p>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${isConnected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
-                    {isConnected ? 'System Online' : 'System Offline'}
+
+                <div className="flex items-center gap-4">
+                    {/* Asset Selector for Admin */}
+                    <div className="flex items-center gap-2 bg-[#16181D] px-3 py-1.5 rounded-lg border border-[#272A32]">
+                        <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">Target Asset:</span>
+                        <AssetSelector
+                            selectedAsset={selectedAsset}
+                            onSelect={(asset) => setSelectedAsset(asset)}
+                        />
+                    </div>
+
+                    <div className={`px-3 py-1 rounded-full text-xs font-semibold ${isConnected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                        {isConnected ? 'System Online' : 'System Offline'}
+                    </div>
                 </div>
             </header>
 
@@ -163,7 +181,7 @@ export default function AdminPage() {
                         </div>
                     </section>
 
-                   
+
                 </div>
 
                 {/* Right Col: Market Configuration */}
@@ -258,32 +276,32 @@ export default function AdminPage() {
                         </div>
                     </section>
                 </div>
-                
+
             </div>
-             {/* Critical Actions */}
-                    <section className="bg-[#16181D] border border-[#272A32] rounded-xl mt-8 p-6">
-                        <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
-                            <StopCircle size={18} className="text-red-500" />
-                            Emergency Controls
-                        </h2>
-                        <div className="grid grid-cols-2 gap-4">
-                            <button
-                                onClick={() => handleForceCloseCandle('5s')}
-                                className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-400 py-3 rounded-lg font-semibold transition-all active:scale-95 flex flex-col items-center gap-1"
-                            >
-                                <span>Stop 5s Candle</span>
-                                <span className="text-[10px] opacity-70">Force Close Immediately</span>
-                            </button>
-                            <button
-                                onClick={() => handleForceCloseCandle('1m')}
-                                className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-400 py-3 rounded-lg font-semibold transition-all active:scale-95 flex flex-col items-center gap-1"
-                            >
-                                <span>Stop 1m Candle</span>
-                                <span className="text-[10px] opacity-70">Force Close Immediately</span>
-                            </button>
-                            {/* Add more timeframes as needed */}
-                        </div>
-                    </section>
+            {/* Critical Actions */}
+            <section className="bg-[#16181D] border border-[#272A32] rounded-xl mt-8 p-6">
+                <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
+                    <StopCircle size={18} className="text-red-500" />
+                    Emergency Controls
+                </h2>
+                <div className="grid grid-cols-2 gap-4">
+                    <button
+                        onClick={() => handleForceCloseCandle('5s')}
+                        className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-400 py-3 rounded-lg font-semibold transition-all active:scale-95 flex flex-col items-center gap-1"
+                    >
+                        <span>Stop 5s Candle</span>
+                        <span className="text-[10px] opacity-70">Force Close Immediately</span>
+                    </button>
+                    <button
+                        onClick={() => handleForceCloseCandle('1m')}
+                        className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/50 text-red-400 py-3 rounded-lg font-semibold transition-all active:scale-95 flex flex-col items-center gap-1"
+                    >
+                        <span>Stop 1m Candle</span>
+                        <span className="text-[10px] opacity-70">Force Close Immediately</span>
+                    </button>
+                    {/* Add more timeframes as needed */}
+                </div>
+            </section>
         </main>
     );
 }

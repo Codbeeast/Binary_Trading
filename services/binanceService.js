@@ -3,47 +3,92 @@ const WebSocket = require('ws');
 class BinanceService {
   constructor() {
     this.ws = null;
-    this.currentPrice = null;
+    this.streams = new Set();
+    this.priceCallbacks = new Map(); // Map<symbol, Set<callback>>
+    this.currentPrices = new Map(); // Map<symbol, price>
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
     this.reconnectDelay = 5000;
-    this.symbol = process.env.MASSIVE_SYMBOL || 'BTCUSDT';
-    this.onPriceUpdate = null;
     this.isConnected = false;
+    this.connectionUrl = 'wss://stream.binance.com:9443/ws';
   }
 
-  connect(onPriceUpdate) {
-    this.onPriceUpdate = onPriceUpdate;
-    const wsUrl = `wss://stream.binance.com:9443/ws/${this.symbol.toLowerCase()}@trade`;
-    
-    console.log(`🔌 Connecting to Binance WebSocket for ${this.symbol}...`);
-    
-    this.ws = new WebSocket(wsUrl);
+  // Subscribe to a symbol
+  subscribe(symbol, callback) {
+    const formattedSymbol = symbol.toLowerCase();
+
+    // Add callback for this symbol
+    if (!this.priceCallbacks.has(formattedSymbol)) {
+      this.priceCallbacks.set(formattedSymbol, new Set());
+    }
+    this.priceCallbacks.get(formattedSymbol).add(callback);
+
+    // If already connected and not subscribed, send subscribe message
+    if (this.isConnected && !this.streams.has(formattedSymbol)) {
+      this.sendSubscribe(formattedSymbol);
+    }
+
+    this.streams.add(formattedSymbol);
+
+    // Return unsubscribe function
+    return () => {
+      const callbacks = this.priceCallbacks.get(formattedSymbol);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          this.priceCallbacks.delete(formattedSymbol);
+          this.streams.delete(formattedSymbol);
+          if (this.isConnected) {
+            this.sendUnsubscribe(formattedSymbol);
+          }
+        }
+      }
+    };
+  }
+
+  connect(initialSymbols = []) {
+    initialSymbols.forEach(s => this.streams.add(s.toLowerCase()));
+
+    // Construct combined stream URL if we have initial symbols
+    // Note: If streams > 0, we can use combined streams, but for dynamic subscription
+    // it's better to connect to base /ws and send subscribe messages.
+
+    console.log(`🔌 Connecting to Binance WebSocket...`);
+
+    this.ws = new WebSocket(this.connectionUrl);
 
     this.ws.on('open', () => {
-      console.log(`✅ Connected to Binance WebSocket for ${this.symbol}`);
+      console.log(`✅ Connected to Binance WebSocket`);
       this.isConnected = true;
       this.reconnectAttempts = 0;
+
+      // Resubscribe to all active streams
+      if (this.streams.size > 0) {
+        this.sendSubscribe(Array.from(this.streams));
+      }
     });
 
     this.ws.on('message', (data) => {
       try {
-        const trade = JSON.parse(data);
-        // Binance trade stream format: { e: 'trade', p: '43250.50', ... }
-        const price = parseFloat(trade.p);
-        
-        if (price && !isNaN(price)) {
-          this.currentPrice = price;
-          
-          if (this.onPriceUpdate) {
-            this.onPriceUpdate(price);
+        const message = JSON.parse(data);
+
+        // Handle trade event
+        if (message.e === 'trade') {
+          const symbol = message.s.toLowerCase();
+          const price = parseFloat(message.p);
+
+          if (price && !isNaN(price)) {
+            this.currentPrices.set(symbol, price);
+
+            // Notify subscribers
+            const callbacks = this.priceCallbacks.get(symbol);
+            if (callbacks) {
+              callbacks.forEach(cb => cb(price));
+            }
           }
-        } else {
-          console.log('⚠️  Received invalid price from Binance:', trade);
         }
       } catch (error) {
         console.error('❌ Error parsing Binance message:', error);
-        console.error('Raw data:', data.toString());
       }
     });
 
@@ -58,37 +103,62 @@ class BinanceService {
     });
   }
 
+  sendSubscribe(streams) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    const streamList = Array.isArray(streams) ? streams : [streams];
+    const params = streamList.map(s => `${s}@trade`);
+
+    const msg = {
+      method: "SUBSCRIBE",
+      params: params,
+      id: Date.now()
+    };
+
+    this.ws.send(JSON.stringify(msg));
+    console.log(`📡 Subscribed to: ${params.join(', ')}`);
+  }
+
+  sendUnsubscribe(streams) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    const streamList = Array.isArray(streams) ? streams : [streams];
+    const params = streamList.map(s => `${s}@trade`);
+
+    const msg = {
+      method: "UNSUBSCRIBE",
+      params: params,
+      id: Date.now()
+    };
+
+    this.ws.send(JSON.stringify(msg));
+    console.log(`🔕 Unsubscribed from: ${params.join(', ')}`);
+  }
+
   attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ Max reconnection attempts reached. Stopping reconnection.');
+      console.error('❌ Max reconnection attempts reached.');
       return;
     }
 
     this.reconnectAttempts++;
-    console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${this.reconnectDelay / 1000}s...`);
+    console.log(`🔄 Reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${this.reconnectDelay / 1000}s`);
 
     setTimeout(() => {
-      if (this.onPriceUpdate) {
-        this.connect(this.onPriceUpdate);
-      }
+      this.connect();
     }, this.reconnectDelay);
   }
 
   disconnect() {
     if (this.ws) {
-      console.log('🔌 Disconnecting from Binance WebSocket...');
       this.ws.close();
       this.ws = null;
       this.isConnected = false;
     }
   }
 
-  getCurrentPrice() {
-    return this.currentPrice;
-  }
-
-  getConnectionStatus() {
-    return this.isConnected;
+  getCurrentPrice(symbol) {
+    return this.currentPrices.get(symbol.toLowerCase());
   }
 }
 

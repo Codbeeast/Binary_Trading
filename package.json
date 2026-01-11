@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "paisa hi paisa",
   "scripts": {
-    "dev": "concurrently \"next dev --webpack\" \"node server.js\"",
+    "dev": "concurrently \"next dev\" \"node server.js\"",
     "build": "next build",
     "start": "concurrently \"next start\" \"node server.js\"",
     "lint": "next lint",
@@ -26,6 +26,7 @@
     "next": "16.0.7",
     "react": "19.2.1",
     "react-dom": "19.2.1",
+    "recharts": "^3.6.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.4.0",
