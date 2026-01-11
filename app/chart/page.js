@@ -505,7 +505,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden rounded-xl border border-[#2C303A] bg-[#1C1F27]">
+          <div className="flex-1 min-h-0 landscape:min-h-[300px] overflow-y-auto overflow-x-hidden rounded-xl border border-[#2C303A] bg-[#1C1F27]">
             <RecentTrades trades={tradeHistory} asset={selectedAsset} />
           </div>
         </aside>

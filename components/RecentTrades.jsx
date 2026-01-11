@@ -47,7 +47,7 @@ export default function RecentTrades({ trades = [], asset }) {
                         : 'border-transparent text-gray-400 hover:text-white'
                         }`}
                 >
-                    <Clock className="w-3.5 h-3.5" />
+                    <span>Orders</span>
                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === 'orders' ? 'bg-blue-500/20 text-blue-400' : 'bg-[#2C303A] text-gray-300'
                         }`}>
                         0
@@ -76,7 +76,7 @@ export default function RecentTrades({ trades = [], asset }) {
                                                 <button className="p-0.5 hover:bg-[#2C303A] rounded">
                                                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="m6 9 6 6 6-6" /></svg>
                                                 </button>
-                                                <div className="flex items-center gap-1.5">
+                                                <div className="flex items-center justify-center gap-1.5">
                                                     <div className="flex -space-x-1">
                                                         <div className="w-4 h-4 rounded-full bg-[#FACC15] flex items-center justify-center text-[8px] text-black font-bold z-10 border border-[#16181F]">
                                                             {(trade.asset || asset || "C").charAt(0)}
@@ -117,7 +117,7 @@ export default function RecentTrades({ trades = [], asset }) {
                         {trades.length === 0 && (
                             <div className="flex flex-col items-center justify-center py-10 text-gray-500 gap-2">
                                 <History className="w-8 h-8 opacity-20" />
-                                <span>No completed trades yet</span>
+                                <span>No data available</span>
                             </div>
                         )}
                     </div>
@@ -127,7 +127,7 @@ export default function RecentTrades({ trades = [], asset }) {
                         <div className="w-16 h-16 rounded-full bg-[#1C1F27] flex items-center justify-center">
                             <Clock className="w-8 h-8 opacity-20" />
                         </div>
-                        <span className="text-[12px]">Order list is empty</span>
+                        <span className="text-[12px]">No data available</span>
                     </div>
                 )}
             </div>
