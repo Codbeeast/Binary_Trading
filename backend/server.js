@@ -3,7 +3,7 @@ require('dotenv').config(); // Load environment variables
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
-const BinanceService = require('../services/binanceService');
+const BinanceService = require('./services/binanceService');
 
 // Market Data Mode: 'real' for Binance live data, 'synthetic' for generated data
 const MARKET_DATA_MODE = process.env.MARKET_DATA_MODE || 'synthetic';
