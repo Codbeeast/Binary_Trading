@@ -1021,7 +1021,8 @@ io.on('connection', (socket) => {
 // Initialize and start server
 const PORT = process.env.PORT || 3001;
 
-// Main startup function
+
+
 // Replace your current startServer function with this:
 
 async function startServer() {
@@ -1054,7 +1055,7 @@ async function startServer() {
                 startSyntheticMultiAssetGeneration();
 
                 // START SERVER WITH ERROR HANDLING
-                const PORT = process.env.PORT || 3001;
+                const PORT = parseInt(process.env.PORT, 10) || 3001;
                 
                 const server = httpServer.listen(PORT)
                         .on('listening', () => {
@@ -1064,9 +1065,10 @@ async function startServer() {
                         .on('error', (err) => {
                                 if (err.code === 'EADDRINUSE') {
                                         console.log(`⚠️  Port ${PORT} is busy, trying ${PORT + 1}...`);
-                                        httpServer.listen(PORT + 1)
+                                        const nextPort = PORT + 1; // Ensure it's a number
+                                        httpServer.listen(nextPort)
                                                 .on('listening', () => {
-                                                        console.log(`🚀 Socket.IO server running on port ${PORT + 1}`);
+                                                        console.log(`🚀 Socket.IO server running on port ${nextPort}`);
                                                 })
                                                 .on('error', (err2) => {
                                                         console.error('❌ Failed to start server:', err2);
