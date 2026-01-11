@@ -286,9 +286,14 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
       const zoom = zoomRef.current || 1.0;
 
-      // Dynamic candle count based on screen width
-      const isMobile = width < 768;
-      const baseCandleCount = isMobile ? 28 : 70; // Even fewer candles on mobile = Wider candles
+      // Dynamic candle count based on screen width and orientation
+      const isPortraitMobile = width < 768 && window.matchMedia("(orientation: portrait)").matches;
+      const isLandscapeMobile = width < 950 && window.matchMedia("(orientation: landscape)").matches && height < 500;
+
+      let baseCandleCount = 70; // Desktop default
+      if (isPortraitMobile) baseCandleCount = 28;
+      else if (isLandscapeMobile) baseCandleCount = 45; // Wider than desktop, thinner than portrait
+
       const targetCandleCount = baseCandleCount * zoom;
 
       const candleFullWidth = pastWidth / targetCandleCount;
@@ -326,8 +331,10 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       // This allows the price line to move up/down naturally within the screen.
 
       const range = maxVal - minVal;
-      // Increased padding factor to 0.3 (User request: "decrease length", i.e., zoom out vertically)
-      const paddingFactor = 0.3;
+      // Padding factor adjustment
+      // Portrait: 0.3 (Zoom out/Short), LandscapeMobile: 0.2 (Balanced), Desktop: 0.1 (Tall)
+      const paddingFactor = isPortraitMobile ? 0.3 : (isLandscapeMobile ? 0.2 : 0.1);
+
       let targetMax = maxVal + range * paddingFactor;
       let targetMin = minVal - range * paddingFactor;
 
@@ -425,7 +432,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       }
 
       // 3. Draw candles (The main content)
-      const wickWidth = 2.0;
+      const wickWidth = (isPortraitMobile || isLandscapeMobile) ? 2.0 : 1.5; // Thicker wicks for mobile
       const MIN_BODY_HEIGHT = 2; // Minimum visible body height in pixels
 
       // Helper for deterministic noise (seeded by timestamp)

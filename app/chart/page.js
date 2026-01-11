@@ -319,20 +319,20 @@ export default function Home() {
             {/* Mobile: Hamburger/Back */}
             <button
               onClick={() => setIsTradePanelOpen(!isTradePanelOpen)}
-              className="lg:hidden p-2 -ml-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#2C303A]"
+              className="lg:hidden landscape:hidden p-2 -ml-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#2C303A]"
             >
               <Menu className="h-5 w-5" />
             </button>
 
             {/* Mobile: 'F' Logo */}
-            <div className="lg:hidden flex items-center gap-2">
+            <div className="lg:hidden landscape:hidden flex items-center gap-2">
               <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold italic text-xl mt-1 ml-1">
                 F
               </div>
             </div>
 
             {/* Desktop: Asset & Timeframe Selectors */}
-            <div className="hidden lg:flex items-center gap-6">
+            <div className="hidden lg:flex landscape:flex landscape:ml-12 lg:ml-0 items-center gap-6">
               <AssetSelector
                 selectedAsset={selectedAsset}
                 onSelect={(asset) => {
@@ -375,7 +375,7 @@ export default function Home() {
             </button>
 
             {/* Profile Menu Trigger */}
-            <button className="hidden lg:flex h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white items-center justify-center shadow-lg shadow-blue-600/20 transition-all transform hover:scale-105">
+            <button className="hidden lg:flex landscape:flex h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white items-center justify-center shadow-lg shadow-blue-600/20 transition-all transform hover:scale-105">
               <User className="h-5 w-5" />
             </button>
           </div>
@@ -400,7 +400,7 @@ export default function Home() {
             />
 
             {/* Mobile Floating Overlays */}
-            <div className="lg:hidden absolute top-4 left-4 z-10 max-w-[50%]">
+            <div className="lg:hidden landscape:hidden absolute top-4 left-4 z-10 max-w-[50%]">
               {/* Floating Asset Selector */}
               <div className="shadow-lg shadow-black/40 rounded-lg">
                 <AssetSelector
@@ -416,7 +416,7 @@ export default function Home() {
             </div>
 
             {/* Mobile Floating Timeframe (Top Right, fixed position) */}
-            <div className="lg:hidden absolute top-0 right-4 z-20">
+            <div className="lg:hidden landscape:hidden absolute top-0 right-4 z-20">
               {/* Position adjusted to avoid Y-axis labels. Assuming labels take ~50-60px */}
               <div className="bg-[#1C1F27]/90 backdrop-blur rounded-lg border border-white/10 shadow-lg p-1">
                 <TimeframeSelector
@@ -470,27 +470,27 @@ export default function Home() {
         </section>
 
         {/* Desktop Sidebar (Right) - Remains visible on LG */}
-        <aside className="hidden lg:flex w-[280px] flex-col border-l border-[#262932] bg-[#16181F] px-4 py-4 gap-4 z-30">
+        <aside className="hidden lg:flex landscape:flex w-[280px] flex-col border-l border-[#262932] bg-[#16181F] px-4 py-4 gap-4 z-30 overflow-y-auto">
           <div className="grid grid-cols-1 gap-3">
-            <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 space-y-3">
-              <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+            <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 landscape:py-1 space-y-3 landscape:space-y-1">
+              <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1 landscape:mb-0">
                 <span>Amount</span>
                 <span className="text-gray-500">INR</span>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <div className="relative flex-1">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">₹</span>
-                  <input type="number" value={tradeAmount} onChange={handleAmountChange} className="w-full bg-[#16181F] text-white font-bold pl-7 pr-3 py-1.5 rounded-lg border border-[#2C303A] outline-none text-lg" />
+                  <input type="number" value={tradeAmount} onChange={handleAmountChange} className="w-full bg-[#16181F] text-white font-bold pl-7 pr-3 py-1.5 landscape:py-0.5 rounded-lg border border-[#2C303A] outline-none text-lg landscape:text-sm" />
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={decrementAmount} className="h-9 w-9 rounded-lg bg-[#262A34] text-gray-200 text-lg font-bold">-</button>
-                  <button onClick={incrementAmount} className="h-9 w-9 rounded-lg bg-[#262A34] text-gray-200 text-lg font-bold">+</button>
+                  <button onClick={decrementAmount} className="h-9 w-9 landscape:h-7 landscape:w-7 rounded-lg bg-[#262A34] text-gray-200 text-lg landscape:text-sm font-bold">-</button>
+                  <button onClick={incrementAmount} className="h-9 w-9 landscape:h-7 landscape:w-7 rounded-lg bg-[#262A34] text-gray-200 text-lg landscape:text-sm font-bold">+</button>
                 </div>
               </div>
               <TimeSelector duration={tradeDuration} onDurationChange={setTradeDuration} />
             </div>
 
-            <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 space-y-3">
+            <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 landscape:py-1 space-y-3 landscape:space-y-1">
               <div className="flex items-center justify-between text-[11px] text-gray-400">
                 <span>Earnings</span>
                 <span className="text-emerald-400 font-semibold">+82%</span>
@@ -499,13 +499,13 @@ export default function Home() {
                 <span>Potential</span>
                 <span>₹{(tradeAmount * 1.82).toFixed(2)}</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <button onClick={() => handleTrade('up')} className="bg-emerald-500 text-black py-3 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all">UP</button>
-                <button onClick={() => handleTrade('down')} className="bg-rose-500 text-white py-3 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all">DOWN</button>
+              <div className="grid grid-cols-2 gap-3 landscape:gap-1 mt-2 landscape:mt-1">
+                <button onClick={() => handleTrade('up')} className="bg-emerald-500 text-black py-3 landscape:py-1 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all">UP</button>
+                <button onClick={() => handleTrade('down')} className="bg-rose-500 text-white py-3 landscape:py-1 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all">DOWN</button>
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-[#2C303A] bg-[#1C1F27]">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden rounded-xl border border-[#2C303A] bg-[#1C1F27]">
             <RecentTrades trades={tradeHistory} asset={selectedAsset} />
           </div>
         </aside>
@@ -514,7 +514,7 @@ export default function Home() {
       {/* Mobile Backdrop */}
       {isTradePanelOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-[60] lg:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-black/50 z-[60] lg:hidden landscape:hidden backdrop-blur-sm transition-opacity"
           onClick={() => setIsTradePanelOpen(false)}
         />
       )}
@@ -522,7 +522,7 @@ export default function Home() {
       {/* Sidebar Controls - Drawer on mobile */}
       <aside className={`
           fixed inset-y-0 left-0 z-[70] w-[280px] bg-[#16181F] border-r border-[#262932] flex flex-col px-4 py-4 gap-4 transition-transform duration-300 ease-in-out shadow-2xl
-          lg:hidden
+          lg:hidden landscape:hidden
           ${isTradePanelOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Mobile Sidebar Header */}
@@ -540,7 +540,7 @@ export default function Home() {
       </aside>
 
       {/* Mobile Fixed Bottom Panel */}
-      <div className="lg:hidden bg-[#16181F] border-t border-[#262932] px-4 pt-3 pb-safe z-50">
+      <div className="lg:hidden landscape:hidden bg-[#16181F] border-t border-[#262932] px-4 pt-3 pb-safe z-50">
         {/* Controls Row */}
         <div className="flex items-start gap-3 mb-3">
           {/* Time Input */}
