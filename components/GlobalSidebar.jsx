@@ -27,7 +27,7 @@ export default function GlobalSidebar({
     }, [pathname, setIsMobileOpen]);
 
     // Don't render sidebar on home page
-    if (pathname === '/') return null;
+    if (pathname === '/'|| pathname === '/login'||pathname === '/register') return null;
 
     const navItems = [
         { name: "Market", href: "/chart", icon: BarChart3 },

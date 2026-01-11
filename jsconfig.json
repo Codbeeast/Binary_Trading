@@ -5,7 +5,7 @@
         "./*"
       ],
       "@/models/*": [
-        "./backend/models/*"
+        "./models/*"
       ]
     }
   }

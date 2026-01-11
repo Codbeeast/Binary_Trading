@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Menu, X } from 'lucide-react';
 import Link from 'next/link';
+import { useSession } from "next-auth/react";
+import UserMenu from "@/components/UserMenu";
 
 export default function Navigation() {
+  const { data: session } = useSession();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -73,12 +76,17 @@ export default function Navigation() {
             >
               Live Demo
             </Link>
-            <Link
-              href="/"
-              className="btn-premium !px-5 !py-2.5 !rounded-lg !text-sm"
-            >
-              Login
-            </Link>
+
+            {session?.user ? (
+              <UserMenu user={session.user} />
+            ) : (
+              <Link
+                href="/login"
+                className="btn-premium !px-5 !py-2.5 !rounded-lg !text-sm"
+              >
+                Login
+              </Link>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -114,19 +122,26 @@ export default function Navigation() {
               ))}
               <div className="pt-4 space-y-3 border-t border-white/5">
                 <Link
-                  href="/demo"
+                  href="/chart"
                   className="block w-full px-4 py-3 text-center text-gray-300 border border-gray-700 rounded-lg hover:border-brand-orange/50 transition-all"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Live Demo
                 </Link>
-                <Link
-                  href="/admin"
-                  className="block w-full px-4 py-3 text-center bg-gradient-to-r from-brand-orange to-brand-gold text-white font-semibold rounded-lg"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Login
-                </Link>
+
+                {session?.user ? (
+                  <div className="flex justify-center pt-2">
+                    <UserMenu user={session.user} />
+                  </div>
+                ) : (
+                  <Link
+                    href="/login"
+                    className="block w-full px-4 py-3 text-center bg-gradient-to-r from-brand-orange to-brand-gold text-white font-semibold rounded-lg"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                )}
               </div>
             </div>
           </motion.div>

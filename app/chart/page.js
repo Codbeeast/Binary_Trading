@@ -2,72 +2,39 @@
 
 import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
+import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import TradingChart from "@/components/TradingChart";
 import TimeframeSelector from "@/components/TimeframeSelector";
 import TimeSelector from "@/components/TimeSelector";
 import RecentTrades from "@/components/RecentTrades";
 import AssetSelector from "@/components/AssetSelector";
+import UserMenu from "@/components/UserMenu";
 import { User, Menu, SlidersHorizontal, ArrowRightSquare, X } from "lucide-react";
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [userId, setUserId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true); // New global loading state
+
+  // Protect Route
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    } else if (status === "authenticated" && session?.user) {
+      setUserId(session.user.id);
+    }
+  }, [status, session, router]);
 
   // UI State for Mobile
   const [isTradePanelOpen, setIsTradePanelOpen] = useState(false);
   const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
 
-  useEffect(() => {
-    let id = localStorage.getItem('binary_user_id');
-    if (!id) {
-      id = 'user_' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('binary_user_id', id);
-    }
-    setUserId(id);
+  // Skip rendering if not authenticated to prevent flash
 
-    // // FETCH HISTORY ON LOAD
-    // const fetchHistory = async () => {
-    //   try {
-    //     // Note: Use environment variable or default to localhost for consistency
-    //     // But from client, relative path /api/analytics usually works if served from same origin (Next.js)
-    //     // However, we moved logic to backend server on port 3001.
-    //     // If we are on port 3000 (Next), we need to hit port 3001.
-    //     // Let's use NEXT_PUBLIC_SOCKET_URL
-    //     const BACKEND_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
-    //     console.log('DEBUG: Fetching History from', `${BACKEND_URL}/api/analytics?userId=${id}&period=month`);
-    //     const res = await fetch(`${BACKEND_URL}/api/analytics?userId=${id}&period=month`);
-    //     const data = await res.json();
-    //     console.log('DEBUG: History Data Recvd', data);
 
-    //     if (data && data.charts && data.charts.profitOverTime) {
-    //       // We need to map the raw trades back to the structure `RecentTrades` expects or `activeTrades`
-    //       // Actually `RecentTrades` receives `trades` prop which is a merge of `activeTrades` and `tradeHistory`.
-    //       // `tradeHistory` state is what we want to populate.
-    //       const history = data.summary.trades.map(t => ({
-    //         id: t._id,
-    //         asset: t.symbol,
-    //         amount: t.amount,
-    //         direction: t.direction,
-    //         result: t.result === 'win' ? 'PROFIT' : (t.result === 'loss' ? 'LOSS' : 'PENDING'),
-    //         payout: t.payout || (t.result === 'win' ? t.amount * 1.82 : 0),
-    //         entryPrice: t.entryPrice,
-    //         exitPrice: t.closePrice, // Assuming closePrice is stored
-    //         duration: t.duration || 60, // Default if missing
-    //         expiryTime: new Date(t.timestamp).getTime() // Approximation if expiry not stored, or use actual
-    //       }));
-    //       // Filter out pending? The API returns all. 
-    //       // We only want completed trades in history.
-    //       // Assuming 'pending' trades might be active? 
-    //       // If they are active, the socket might re-send them or we might miss them if we don't handle restoration.
-    //       // For now, let's just populate history with completed trades.
-    //       setTradeHistory(history.filter(h => h.result !== 'PENDING'));
-    //     }
-    //   } catch (e) {
-    //     console.error("Failed to load trade history", e);
-    //   }
-    // };
-    // if (id) fetchHistory();
-
-  }, []);
+  // Socket and Chart logic continues below... (removed localStorage ID generation)
   const [socket, setSocket] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(100.00);
   const [marketState, setMarketState] = useState({
@@ -422,6 +389,17 @@ export default function Home() {
     };
   }, [selectedAsset]);
 
+  if (status === "loading" || status === "unauthenticated") {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#111318] text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 text-sm animate-pulse">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     // Use 100dvh for proper mobile viewport height
     <main className="h-[100dvh] bg-[#111318] text-[#E3E5E8] flex flex-col overflow-hidden">
@@ -487,10 +465,8 @@ export default function Home() {
               </span>
             </button>
 
-            {/* Profile Menu Trigger */}
-            <button className="flex h-9 w-9 lg:h-10 lg:w-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white items-center justify-center shadow-lg shadow-blue-600/20 transition-all transform hover:scale-105">
-              <User className="h-5 w-5" />
-            </button>
+            {/* User Menu */}
+            <UserMenu user={session?.user} />
           </div>
         </div>
       </header>

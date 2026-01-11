@@ -1,40 +1,14 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const CandleSchema = new mongoose.Schema({
-  open: {
-    type: Number,
-    required: true,
-  },
-  high: {
-    type: Number,
-    required: true,
-  },
-  low: {
-    type: Number,
-    required: true,
-  },
-  close: {
-    type: Number,
-    required: true,
-  },
-  timeframe: {
-    type: String,
-    required: true,
-    enum: ['1s', '5s', '15s', '30s', '1m'],
-  },
-  timestamp: {
-    type: Date,
-    required: true,
-  },
-  volume: {
-    type: Number,
-    default: 0,
-  },
-}, {
-  timestamps: true,
+  open: Number,
+  high: Number,
+  low: Number,
+  close: Number,
+  timeframe: String,
+  timestamp: Date,
+  volume: { type: Number, default: 0 },
+  symbol: { type: String, default: 'BTCUSDT' },
 });
 
-// Compound index for efficient queries
-CandleSchema.index({ timeframe: 1, timestamp: -1 });
-
-export default mongoose.models.Candle || mongoose.model('Candle', CandleSchema);
+module.exports = mongoose.models.Candle || mongoose.model('Candle', CandleSchema);

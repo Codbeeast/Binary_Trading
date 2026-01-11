@@ -17,37 +17,10 @@ if (!process.env.MONGODB_URI) {
 }
 
 // Define schemas directly in server
-const TickSchema = new mongoose.Schema({
-        price: Number,
-        timestamp: { type: Date, default: Date.now },
-        timeframe: { type: String, default: '5s' },
-        symbol: { type: String, default: 'BTCUSDT' }, // Added symbol
-});
-
-const CandleSchema = new mongoose.Schema({
-        open: Number,
-        high: Number,
-        low: Number,
-        close: Number,
-        timeframe: String,
-        timestamp: Date,
-        volume: { type: Number, default: 0 },
-        symbol: { type: String, default: 'BTCUSDT' }, // Added symbol
-});
-
-const MarketControlSchema = new mongoose.Schema({
-        direction: { type: String, enum: ['up', 'down', 'neutral'], default: 'neutral' },
-        volatility: { type: Number, default: 1.0 },
-        tickSpeed: { type: Number, default: 300 },
-        currentPrice: { type: Number, default: 100.00 },
-        lastUpdated: { type: Date, default: Date.now },
-        isActive: { type: Boolean, default: true },
-        symbol: { type: String, unique: true } // Support per-asset control
-});
-
-const Tick = mongoose.models.Tick || mongoose.model('Tick', TickSchema);
-const Candle = mongoose.models.Candle || mongoose.model('Candle', CandleSchema);
-const MarketControl = mongoose.models.MarketControl || mongoose.model('MarketControl', MarketControlSchema);
+// Define schemas via External Models
+const Tick = require('./models/Tick');
+const Candle = require('./models/Candle');
+const MarketControl = require('./models/MarketControl');
 
 const Trade = require('./models/Trade');
 
