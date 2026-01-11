@@ -113,6 +113,8 @@ export default function Home() {
     low24h: 0,
   });
 
+  const [demoBalance, setDemoBalance] = useState(0); // Synced with DB
+
   const [activeTrades, setActiveTrades] = useState([]);
   const [tradeResults, setTradeResults] = useState([]);
   const [tradeHistory, setTradeHistory] = useState([]);
@@ -147,6 +149,8 @@ export default function Home() {
           result: isProfit ? 'PROFIT' : 'LOSS',
           amount: isProfit ? trade.amount * 1.82 : 0,
           investment: trade.amount, // Pass original investment
+          entryPrice: trade.entryPrice,
+          exitPrice: exitPrice,
           entryPrice: trade.entryPrice,
           exitPrice: exitPrice,
           direction: trade.direction
@@ -216,6 +220,9 @@ export default function Home() {
         clientTradeId: newTrade.id, // Send unique ID for deduplication
         duration: durationSeconds // Explicitly send duration
       });
+
+      // Deduct from balance immediately
+      setDemoBalance(prev => Math.max(0, prev - tradeAmount));
     }
   };
 
@@ -263,10 +270,56 @@ export default function Home() {
       socketInstance.emit('subscribe', selectedAsset);
     });
 
-    // Handle historical trades load
+    // Handle initial balance
+    socketInstance.on('active_balance', (balance) => {
+      setDemoBalance(balance);
+    });
+
+    // Handle real-time balance updates
+    socketInstance.on('balance_update', (newBalance) => {
+      setDemoBalance(newBalance);
+    });
+
+    // Handle historical trades load - Split into Active and History
     socketInstance.on('user_trade_history', (history) => {
-      // console.log('Loaded history:', history.length);
-      setTradeHistory(history);
+      const now = Date.now();
+      const active = [];
+      const completed = [];
+
+      history.forEach(trade => {
+        // Reconstruct expiration time
+        const startTime = new Date(trade.timestamp).getTime();
+        const duration = trade.duration || 60;
+        const expiryTime = trade.expiryTime ? new Date(trade.expiryTime).getTime() : (startTime + (duration * 1000));
+
+        // Check if trade is still valid and pending
+        if (trade.result === 'pending' && expiryTime > now) {
+          active.push({
+            id: trade.clientTradeId || trade._id,
+            direction: trade.direction,
+            amount: trade.amount,
+            entryPrice: trade.entryPrice,
+            startTime: startTime,
+            expiryTime: expiryTime,
+            duration: duration,
+            asset: trade.symbol,
+            isSynced: true
+          });
+        } else {
+          completed.push(trade);
+        }
+      });
+
+      setTradeHistory(completed);
+
+      // Merge restored active trades with current active trades (deduplicate)
+      if (active.length > 0) {
+        setActiveTrades(prev => {
+          const currentIds = new Set(prev.map(t => t.id));
+          const newActive = active.filter(t => !currentIds.has(t.id));
+          return [...prev, ...newActive];
+        });
+      }
     });
 
     // Handle new trade broadcast from other tabs
@@ -479,7 +532,7 @@ export default function Home() {
             <div className="flex flex-col items-end">
               <span className="text-[10px] lg:text-[11px] font-medium text-gray-400 uppercase tracking-wider">Demo account</span>
               <span className="font-bold text-sm lg:text-lg tabular-nums tracking-tight text-white shadow-black drop-shadow-sm">
-                ₹{Number(799900).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₹{demoBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
 

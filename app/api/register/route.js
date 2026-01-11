@@ -36,7 +36,7 @@ export async function POST(req) {
             name,
             email,
             password: hashedPassword,
-            balance: 10000,
+            balance: 800000,
             role: 'user'
         });
 

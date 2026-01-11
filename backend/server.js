@@ -24,6 +24,7 @@ const Candle = require('./models/Candle');
 const MarketControl = require('./models/MarketControl');
 
 const Trade = require('./models/Trade');
+const User = require('./models/User');
 
 // Trade statistics (in-memory cache for speed)
 let tradeStats = {
@@ -730,6 +731,10 @@ io.on('connection', (socket) => {
 
                         // Fetch and emit user's trade history
                         try {
+                                const user = await User.findById(userId);
+                                const balance = user ? user.balance : 800000;
+                                socket.emit('active_balance', balance);
+
                                 const history = await Trade.find({ userId })
                                         .sort({ timestamp: -1 })
                                         .limit(50);
@@ -777,7 +782,7 @@ io.on('connection', (socket) => {
 
         // Handle placing a trade
         socket.on('place_trade', async (data) => {
-                
+
                 try {
                         const { direction, amount, timeframe, userId, symbol, clientTradeId, duration } = data;
 
@@ -808,6 +813,17 @@ io.on('connection', (socket) => {
                                 clientTradeId
                         });
 
+                        // Deduct Balance
+                        const user = await User.findByIdAndUpdate(
+                                userId,
+                                { $inc: { balance: -amount } },
+                                { new: true }
+                        );
+
+                        if (user) {
+                                io.to(userId).emit('balance_update', user.balance);
+                        }
+
                         await newTrade.save();
 
                         // Notify user (and other tabs)
@@ -836,6 +852,18 @@ io.on('connection', (socket) => {
                                         newTrade.closePrice = closePrice;
                                         newTrade.payout = payout;
                                         await newTrade.save();
+
+                                        // Update User Balance on Win
+                                        if (result === 'win') {
+                                                const updatedUser = await User.findByIdAndUpdate(
+                                                        userId,
+                                                        { $inc: { balance: payout } },
+                                                        { new: true }
+                                                );
+                                                if (updatedUser) {
+                                                        io.to(userId).emit('balance_update', updatedUser.balance);
+                                                }
+                                        }
 
                                         // Notify Client of Result
                                         if (userId) {

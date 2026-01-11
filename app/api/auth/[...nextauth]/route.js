@@ -68,7 +68,7 @@ export const authOptions = {
                             name: user.name,
                             email: user.email,
                             image: user.image,
-                            balance: 10000, // Demo balance
+                            balance: 800000, // Demo balance 8 Lakhs
                             provider: 'google',
                             role: 'user',
                             // No password for google users
