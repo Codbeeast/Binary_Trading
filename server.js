@@ -1022,12 +1022,14 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 
 // Main startup function
+// Replace your current startServer function with this:
+
 async function startServer() {
         try {
                 // Connect to MongoDB
                 await mongoose.connect(MONGODB_URI, {
                         bufferCommands: false,
-                        serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds
+                        serverSelectionTimeoutMS: 5000,
                 });
                 console.log('✅ MongoDB connected to server');
 
@@ -1047,16 +1049,35 @@ async function startServer() {
                         startBinanceRealTimeData();
                 }
 
-                // Start Synthetic Generator for everything else (or ALL if mode is synthetic)
-                // This function is smart enough to skip Crypto if mode is 'real'
+                // Start Synthetic Generator
                 console.log('🎲 Starting Synthetic Multi-Asset Generator...');
                 startSyntheticMultiAssetGeneration();
 
-                // Start HTTP server
-                httpServer.listen(PORT, () => {
-                        console.log(`🚀 Socket.IO server running on port ${PORT}`);
-                        console.log(`📊 Hybrid Data Feed Active: ${MARKET_DATA_MODE.toUpperCase()}`);
-                });
+                // START SERVER WITH ERROR HANDLING
+                const PORT = process.env.PORT || 3001;
+                
+                const server = httpServer.listen(PORT)
+                        .on('listening', () => {
+                                console.log(`🚀 Socket.IO server running on port ${PORT}`);
+                                console.log(`📊 Hybrid Data Feed Active: ${MARKET_DATA_MODE.toUpperCase()}`);
+                        })
+                        .on('error', (err) => {
+                                if (err.code === 'EADDRINUSE') {
+                                        console.log(`⚠️  Port ${PORT} is busy, trying ${PORT + 1}...`);
+                                        httpServer.listen(PORT + 1)
+                                                .on('listening', () => {
+                                                        console.log(`🚀 Socket.IO server running on port ${PORT + 1}`);
+                                                })
+                                                .on('error', (err2) => {
+                                                        console.error('❌ Failed to start server:', err2);
+                                                        process.exit(1);
+                                                });
+                                } else {
+                                        console.error('❌ Server error:', err);
+                                        process.exit(1);
+                                }
+                        });
+
         } catch (err) {
                 console.error('❌ Server startup error:', err);
                 process.exit(1);
