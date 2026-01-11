@@ -30,7 +30,8 @@ export default function AnalyticsPage() {
         if (!userId) return;
         setLoading(true);
         try {
-            const res = await fetch(`/api/analytics?period=${period}&userId=${userId}`);
+            const BACKEND_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+            const res = await fetch(`${BACKEND_URL}/api/analytics?period=${period}&userId=${userId}`);
             const json = await res.json();
             setData(json);
         } catch (error) {

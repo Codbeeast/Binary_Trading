@@ -61,14 +61,32 @@ let tradeStats = {
         sellVolume: 0,
 };
 
-// Create HTTP server
-const httpServer = createServer();
+const express = require('express');
+const cors = require('cors');
+
+// Create Express App
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Create HTTP server wrapping Express
+const httpServer = createServer(app);
 const io = new Server(httpServer, {
         cors: {
                 origin: '*',
                 methods: ['GET', 'POST'],
         },
 });
+
+// REST API Endpoints
+
+// Routes
+const analyticsRoutes = require('./routes/analytics');
+
+// Use Routes
+app.use('/api/analytics', analyticsRoutes);
 
 // Market state
 let marketState = {
