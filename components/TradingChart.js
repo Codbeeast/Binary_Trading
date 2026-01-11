@@ -190,8 +190,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // *ENHANCEMENT: Maximized screen usage (Right-side prices)*
-    // Padding adjusted: Top: 50, Right: 100 (Super Safe), Bottom: 40
-    const padding = { top: 50, right: 100, bottom: 40, left: 0 };
+    // Padding adjusted: Top: 50, Right: 75, Bottom: 40
+    const padding = { top: 50, right: 75, bottom: 40, left: 0 };
 
     // Dynamic Price Formatter
     const formatPrice = (p) => {
@@ -618,8 +618,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
         ctx.fillStyle = "#A6ABB5"; // Gray color
         ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
-        ctx.textAlign = "left";
-        ctx.fillText(formatPrice(price), width - padding.right + 8, y + 4);
+        ctx.textAlign = "right";
+        ctx.fillText(formatPrice(price), width - 8, y + 4);
       }
 
       // 6. Price line
