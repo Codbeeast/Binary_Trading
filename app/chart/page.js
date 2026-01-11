@@ -11,6 +11,7 @@ import { User, Menu, SlidersHorizontal, ArrowRightSquare, X } from "lucide-react
 
 export default function Home() {
   const [userId, setUserId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true); // New global loading state
 
   // UI State for Mobile
   const [isTradePanelOpen, setIsTradePanelOpen] = useState(false);
@@ -269,7 +270,12 @@ export default function Home() {
         socketInstance.emit('join_user', userId);
       }
 
+      if (userId) {
+        socketInstance.emit('join_user', userId);
+      }
+
       // Subscribe to selected asset
+      setIsLoading(true); // Ensure loading is shown while creating/subscribing
       socketInstance.emit('subscribe', selectedAsset);
     });
 
@@ -391,6 +397,9 @@ export default function Home() {
           ...prevMap,
           [data.timeframe]: data.candles
         }));
+
+        // Data Received: Turn off loader with brief timeout for smoothness
+        setTimeout(() => setIsLoading(false), 300);
       }
     });
 
@@ -420,6 +429,15 @@ export default function Home() {
       socketInstance.disconnect();
       clearInterval(statsInterval);
     };
+    return () => {
+      socketInstance.disconnect();
+      clearInterval(statsInterval);
+    };
+  }, [selectedAsset]); // Re-run effect when selectedAsset changes
+
+  // Trigger loading when asset changes (before effect runs) - Handled inside effect but double check
+  useEffect(() => {
+    setIsLoading(true);
   }, [selectedAsset]);
 
   return (
@@ -503,13 +521,14 @@ export default function Home() {
           {/* Chart Container */}
           <div className="flex-1 relative overflow-hidden">
             <TradingChart
-              candles={candles}
+              candles={candlesMap[selectedTimeframe] || []}
               currentPrice={currentPrice}
               timeframe={selectedTimeframe}
               direction={marketState.direction}
               activeTrades={activeTrades}
               onCandlePersist={handleCandlePersist}
               key={selectedAsset}
+              isLoading={isLoading}
             />
 
             {/* Mobile Floating Overlays */}

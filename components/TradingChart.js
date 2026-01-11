@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function TradingChart({ candles, currentPrice, timeframe, direction, activeTrades = [], onCandlePersist }) {
+export default function TradingChart({ candles, currentPrice, timeframe, direction, activeTrades = [], onCandlePersist, isLoading }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
