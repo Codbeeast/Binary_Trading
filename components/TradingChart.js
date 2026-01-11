@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function TradingChart({ candles, currentPrice, timeframe, direction, activeTrades = [], onCandlePersist, isLoading }) {
+export default function TradingChart({ candles, currentPrice, timeframe, direction, activeTrades = [], onCandlePersist }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -673,182 +673,174 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         const map = { '5s': 5000, '15s': 15000, '30s': 30000, '1m': 60000 };
         if (timeframe in map) duration = map[timeframe];
 
-        const timestamp = activeCandle.timestamp;
-        if (timestamp && !isNaN(timestamp.getTime())) {
-          const startTime = timestamp.getTime();
-          const elapsed = Date.now() - startTime;
-          const remain = Math.max(0, duration - elapsed);
+        const startTime = activeCandle.timestamp ? activeCandle.timestamp.getTime() : Date.now();
+        const elapsed = Date.now() - startTime;
+        const remain = Math.max(0, duration - elapsed);
 
-          // Format MM:SS
-          let totalSeconds = Math.ceil(remain / 1000);
+        // Format MM:SS
+        const totalSeconds = Math.ceil(remain / 1000);
+        const mm = Math.floor(totalSeconds / 60);
+        const ss = totalSeconds % 60;
+        const text = `${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`;
 
-          // Clamp to max duration to avoid showing e.g. 6s or 7s for a 5s candle (due to clock drift)
-          const maxSeconds = duration / 1000;
-          if (totalSeconds > maxSeconds) totalSeconds = maxSeconds;
-
-          const mm = Math.floor(totalSeconds / 60);
-          const ss = totalSeconds % 60;
-          const text = `${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`;
-
-          // Draw Text
-          ctx.save();
-          ctx.fillStyle = "#E3E5E8"; // Light/White text
-          ctx.font = "500 12px monospace"; // Monospace for stable jitter
-          ctx.textAlign = "right";
-          ctx.shadowColor = "#000000";
-          ctx.shadowBlur = 4;
-          // Position: slightly left of the solid line end, just above the line
-          ctx.fillText(text, width - padding.right - 15, priceY - 6);
-          ctx.restore();
-        }
+        // Draw Text
+        ctx.save();
+        ctx.fillStyle = "#E3E5E8"; // Light/White text
+        ctx.font = "500 12px monospace"; // Monospace for stable jitter
+        ctx.textAlign = "right";
+        ctx.shadowColor = "#000000";
+        ctx.shadowBlur = 4;
+        // Position: slightly left of the solid line end, just above the line
+        ctx.fillText(text, width - padding.right - 15, priceY - 6);
+        ctx.restore();
       }
 
-      // 7. Price label (Right side)
-      const labelWidth = 70; // Reduced from 96 to fit
-      const labelHeight = 24; // Compact
-      // Calculate X to center it in the padding area
-      const labelX = width - padding.right + (padding.right - labelWidth) / 2;
-      const labelY = priceY - labelHeight / 2;
+      7. Price label(Right side)
+      nst labelWidth = 70; // Reduced from 96 to fit
+      nst labelHeight = 24; // Compact
+       Calculate X to center it in the padding area
+      nst labelX = width - padding.right + (padding.right - labelWidth) / 2;
+      nst labelY = priceY - labelHeight / 2;
 
-      const labelBgColor = "#2C2F36";
+      nst labelBgColor = "#2C2F36";
 
-      // Draw Price Label Box
-      ctx.save();
-      ctx.fillStyle = labelBgColor;
-      ctx.shadowColor = neutralPriceColor;
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 4);
-      ctx.fill();
-      ctx.restore();
+       Draw Price Label Box
+      x.save();
+      x.fillStyle = labelBgColor;
+      x.shadowColor = neutralPriceColor;
+      x.shadowBlur = 14;
+      x.beginPath();
+      x.roundRect(labelX, labelY, labelWidth, labelHeight, 4);
+      x.fill();
+      x.restore();
 
-      // Draw Price Text
-      ctx.fillStyle = "#E3E5E8";
-      ctx.font = "500 13px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(
-        formatPrice(visiblePrice || currentPrice),
-        labelX + labelWidth / 2,
-        labelY + labelHeight / 2 + 5
-      );
+       Draw Price Text
+      x.fillStyle = "#E3E5E8";
+      x.font = "500 13px system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif";
+      x.textAlign = "center";
+      x.fillText(
+        rmatPrice(visiblePrice || currentPrice),
+        belX + labelWidth / 2,
+        belY + labelHeight / 2 + 5
+      
 
-      // 8. Timeframe label REMOVED as per user request (logic kept for structure)
-      // ctx.fillStyle = "rgba(160, 170, 200, 0.9)";
-      // ctx.font = "bold 14px sans-serif";
-      // ctx.fillText(...)
+       8. Timeframe label REMOVED as per user request(logic kept for structure)
+        ctx.fillStyle = "rgba(160, 170, 200, 0.9)";
+      ctx.font = "bold 14px sans-serif";
+      ctx.fillText(...)
 
-      // 9. Aesthetic Clean-up: Clear the right-top area
-      // Reduced height (padding.top - 15) to avoid covering the top-most price label at y=50
-      ctx.fillStyle = bgGradient;
-      ctx.fillRect(width - padding.right - 2, 0, padding.right + 2, padding.top - 15);
+      9. Aesthetic Clean - up: Clear the right - top area
+       Reduced height(padding.top - 15) to avoid covering the top - most price label at y = 50
+      x.fillStyle = bgGradient;
+      x.fillRect(width - padding.right - 2, 0, padding.right + 2, padding.top - 15);
 
-      // 10. Draw Active Trades
-      if (activeTrades && activeTrades.length > 0) {
-        activeTrades.forEach(trade => {
-          const y = priceToY(trade.entryPrice);
-          const isUp = trade.direction === 'up';
-          const color = isUp ? "#10B981" : "#F43F5E"; // Emerald / Rose
+      10. Draw Active Trades
+        (activeTrades && activeTrades.length > 0) {
+        tiveTrades.forEach(trade => {
+          nst y = priceToY(trade.entryPrice);
+          nst isUp = trade.direction === 'up';
+          nst color = isUp ? "#10B981" : "#F43F5E"; // Emerald / Rose
 
-          // Draw horizontal line
-          ctx.save();
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([5, 3]);
+           Draw horizontal line
+          x.save();
+          x.strokeStyle = color;
+          x.lineWidth = 1.5;
+          x.setLineDash([5, 3]);
 
-          ctx.beginPath();
-          ctx.moveTo(padding.left, y);
-          ctx.lineTo(width - padding.right, y);
-          ctx.stroke();
+          x.beginPath();
+          x.moveTo(padding.left, y);
+          x.lineTo(width - padding.right, y);
+          x.stroke();
 
-          // Draw Direction Marker
-          const markerX = width - padding.right + 10;
-          const markerSize = 14;
+           Draw Direction Marker
+          nst markerX = width - padding.right + 10;
+          nst markerSize = 14;
 
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          if (isUp) {
-            ctx.moveTo(markerX, y + markerSize / 2);
-            ctx.lineTo(markerX + markerSize, y + markerSize / 2);
-            ctx.lineTo(markerX + markerSize / 2, y - markerSize / 2);
-          } else {
-            ctx.moveTo(markerX, y - markerSize / 2);
-            ctx.lineTo(markerX + markerSize, y - markerSize / 2);
-            ctx.lineTo(markerX + markerSize / 2, y + markerSize / 2);
-          }
-          ctx.closePath();
-          ctx.fill();
+          x.fillStyle = color;
+          x.beginPath();
+          (isUp) {
+            x.moveTo(markerX, y + markerSize / 2);
+            x.lineTo(markerX + markerSize, y + markerSize / 2);
+            x.lineTo(markerX + markerSize / 2, y - markerSize / 2);
+          else {
+      x.moveTo(markerX, y - markerSize / 2);
+      x.lineTo(markerX + markerSize, y - markerSize / 2);
+      x.lineTo(markerX + markerSize / 2, y + markerSize / 2);
 
-          // Entry point dot
-          const dotX = width - padding.right;
-          ctx.beginPath();
-          ctx.arc(dotX, y, 3, 0, Math.PI * 2);
-          ctx.fillStyle = color;
-          ctx.fill();
+      x.closePath();
+      x.fill();
 
-          ctx.restore();
-        });
-      }
+           Entry point dot
+          nst dotX = width - padding.right;
+      x.beginPath();
+      x.arc(dotX, y, 3, 0, Math.PI * 2);
+      x.fillStyle = color;
+      x.fill();
 
-      // Crosshair / hover (unchanged logic)
-      const hover = hoverStateRef.current;
-      if (hover && hover.x != null && hover.y != null && hover.index != null) {
-        const hoverIndex = hover.index;
-        if (hoverIndex >= 0 && hoverIndex < renderCandles.length) {
-          const cx = indexToX(hoverIndex) + candleWidth / 2;
-          const cy = priceToY(hover.price ?? visiblePrice);
+      x.restore();
+      ;
 
-          ctx.save();
-          ctx.strokeStyle = "rgba(200, 210, 240, 0.6)";
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
 
-          ctx.beginPath();
-          ctx.moveTo(cx, padding.top);
-          ctx.lineTo(cx, height - padding.bottom);
-          ctx.stroke();
+      Crosshair / hover(unchanged logic)
+      nst hover = hoverStateRef.current;
+      (hover && hover.x != null && hover.y != null && hover.index != null) {
+        nst hoverIndex = hover.index;
+        (hoverIndex >= 0 && hoverIndex < renderCandles.length) {
+          nst cx = indexToX(hoverIndex) + candleWidth / 2;
+          nst cy = priceToY(hover.price ?? visiblePrice);
 
-          ctx.beginPath();
-          ctx.moveTo(padding.left, cy);
-          ctx.lineTo(width, cy); // Draw grid line to the VERY EDGE of screen (was width - padding.right)
-          ctx.stroke();
-          ctx.restore();
+          x.save();
+          x.strokeStyle = "rgba(200, 210, 240, 0.6)";
+          x.lineWidth = 1;
+          x.setLineDash([4, 4]);
 
-          // Price box
-          const pbWidth = 70;
-          const pbHeight = 22;
-          const pbX = padding.left - pbWidth - 6;
-          const pbY = cy - pbHeight / 2;
+          x.beginPath();
+          x.moveTo(cx, padding.top);
+          x.lineTo(cx, height - padding.bottom);
+          x.stroke();
 
-          ctx.save();
-          ctx.fillStyle = "rgba(15, 23, 42, 0.95)";
-          ctx.beginPath();
-          ctx.roundRect(pbX, pbY, pbWidth, pbHeight, 4);
-          ctx.fill();
-          ctx.restore();
+          x.beginPath();
+          x.moveTo(padding.left, cy);
+          x.lineTo(width, cy); // Draw grid line to the VERY EDGE of screen (was width - padding.right)
+          x.stroke();
+          x.restore();
 
-          ctx.fillStyle = "#e5e7eb";
-          ctx.font = "11px monospace";
-          ctx.textAlign = "center";
-          ctx.textAlign = "center";
-          ctx.fillText(
-            formatPrice(hover.price ?? visiblePrice),
-            pbX + pbWidth / 2,
-            pbY + pbHeight / 2 + 3
-          );
-        }
-      }
+           Price box
+          nst pbWidth = 70;
+          nst pbHeight = 22;
+          nst pbX = padding.left - pbWidth - 6;
+          nst pbY = cy - pbHeight / 2;
 
-      animationFrameRef.current = requestAnimationFrame(updateAndDraw);
-    };
+          x.save();
+          x.fillStyle = "rgba(15, 23, 42, 0.95)";
+          x.beginPath();
+          x.roundRect(pbX, pbY, pbWidth, pbHeight, 4);
+          x.fill();
+          x.restore();
 
-    animationFrameRef.current = requestAnimationFrame(updateAndDraw);
+          x.fillStyle = "#e5e7eb";
+          x.font = "11px monospace";
+          x.textAlign = "center";
+          x.textAlign = "center";
+          x.fillText(
+            rmatPrice(hover.price ?? visiblePrice),
+            X + pbWidth / 2,
+            Y + pbHeight / 2 + 3
+          
+        
+      
 
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [currentPrice, dimensions, timeframe, direction]);
+      imationFrameRef.current = requestAnimationFrame(updateAndDraw);
+
+
+          imationFrameRef.current = requestAnimationFrame(updateAndDraw);
+
+          turn() => {
+            (animationFrameRef.current) {
+              ncelAnimationFrame(animationFrameRef.current);
+
+
+              [currentPrice, dimensions, timeframe, direction]);
 
   // The rest of the component logic (pointer handlers, return JSX) remains unchanged
   const handlePointerMove = (event) => {
