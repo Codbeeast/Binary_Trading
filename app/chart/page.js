@@ -146,6 +146,7 @@ export default function Home() {
           id: trade.id,
           result: isProfit ? 'PROFIT' : 'LOSS',
           amount: isProfit ? trade.amount * 1.82 : 0,
+          investment: trade.amount, // Pass original investment
           entryPrice: trade.entryPrice,
           exitPrice: exitPrice,
           direction: trade.direction
@@ -578,7 +579,7 @@ export default function Home() {
                       `}>
                   <div className="text-2xl font-black text-white tracking-widest">{result.result}</div>
                   <div className={`text-4xl font-bold ${result.result === 'PROFIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {result.result === 'PROFIT' ? `+₹${result.amount.toFixed(2)}` : '₹0.00'}
+                    {result.result === 'PROFIT' ? `+₹${result.amount.toFixed(2)}` : `-₹${(result.investment || 0).toFixed(2)}`}
                   </div>
                 </div>
               </div>

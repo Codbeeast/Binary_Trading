@@ -111,7 +111,7 @@ export default function RecentTrades({ trades = [], asset }) {
                                                 </span>
                                             </div>
                                             <span className={`font-bold font-mono ${(trade.result === 'PROFIT' || trade.result === 'win') ? 'text-[#FACC15]' : 'text-rose-500'}`}>
-                                                {(trade.result === 'PROFIT' || trade.result === 'win') ? `+${(trade.payout || 0).toFixed(2)} ₹` : '0.00 ₹'}
+                                                {(trade.result === 'PROFIT' || trade.result === 'win') ? `+${(trade.payout || 0).toFixed(2)} ₹` : `-${(trade.amount || 0).toFixed(2)} ₹`}
                                             </span>
                                         </div>
                                     </div>

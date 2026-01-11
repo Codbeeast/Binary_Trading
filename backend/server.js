@@ -845,6 +845,7 @@ io.on('connection', (socket) => {
                                                         clientTradeId,
                                                         result: result === 'win' ? 'PROFIT' : 'LOSS',
                                                         amount: payout,
+                                                        investment: amount, // Send original investment
                                                         closePrice,
                                                         symbol
                                                 });
