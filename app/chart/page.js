@@ -14,6 +14,7 @@ export default function Home() {
 
   // UI State for Mobile
   const [isTradePanelOpen, setIsTradePanelOpen] = useState(false);
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
 
   useEffect(() => {
     let id = localStorage.getItem('binary_user_id');
@@ -22,6 +23,50 @@ export default function Home() {
       localStorage.setItem('binary_user_id', id);
     }
     setUserId(id);
+
+    // // FETCH HISTORY ON LOAD
+    // const fetchHistory = async () => {
+    //   try {
+    //     // Note: Use environment variable or default to localhost for consistency
+    //     // But from client, relative path /api/analytics usually works if served from same origin (Next.js)
+    //     // However, we moved logic to backend server on port 3001.
+    //     // If we are on port 3000 (Next), we need to hit port 3001.
+    //     // Let's use NEXT_PUBLIC_SOCKET_URL
+    //     const BACKEND_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+    //     console.log('DEBUG: Fetching History from', `${BACKEND_URL}/api/analytics?userId=${id}&period=month`);
+    //     const res = await fetch(`${BACKEND_URL}/api/analytics?userId=${id}&period=month`);
+    //     const data = await res.json();
+    //     console.log('DEBUG: History Data Recvd', data);
+
+    //     if (data && data.charts && data.charts.profitOverTime) {
+    //       // We need to map the raw trades back to the structure `RecentTrades` expects or `activeTrades`
+    //       // Actually `RecentTrades` receives `trades` prop which is a merge of `activeTrades` and `tradeHistory`.
+    //       // `tradeHistory` state is what we want to populate.
+    //       const history = data.summary.trades.map(t => ({
+    //         id: t._id,
+    //         asset: t.symbol,
+    //         amount: t.amount,
+    //         direction: t.direction,
+    //         result: t.result === 'win' ? 'PROFIT' : (t.result === 'loss' ? 'LOSS' : 'PENDING'),
+    //         payout: t.payout || (t.result === 'win' ? t.amount * 1.82 : 0),
+    //         entryPrice: t.entryPrice,
+    //         exitPrice: t.closePrice, // Assuming closePrice is stored
+    //         duration: t.duration || 60, // Default if missing
+    //         expiryTime: new Date(t.timestamp).getTime() // Approximation if expiry not stored, or use actual
+    //       }));
+    //       // Filter out pending? The API returns all. 
+    //       // We only want completed trades in history.
+    //       // Assuming 'pending' trades might be active? 
+    //       // If they are active, the socket might re-send them or we might miss them if we don't handle restoration.
+    //       // For now, let's just populate history with completed trades.
+    //       setTradeHistory(history.filter(h => h.result !== 'PENDING'));
+    //     }
+    //   } catch (e) {
+    //     console.error("Failed to load trade history", e);
+    //   }
+    // };
+    // if (id) fetchHistory();
+
   }, []);
   const [socket, setSocket] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(100.00);
@@ -36,6 +81,40 @@ export default function Home() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('5s');
   const [selectedAsset, setSelectedAsset] = useState('BTCUSDT');
   const selectedAssetRef = useRef('BTCUSDT');
+
+  // -- PERSISTENCE LOGIC START --
+
+  // 1. Load settings from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedAmount = localStorage.getItem('binary_trade_amount');
+      const savedTimeframe = localStorage.getItem('binary_selected_timeframe');
+      const savedAsset = localStorage.getItem('binary_selected_asset');
+
+      // console.log('DEBUG: LocalStorage Load', { savedAmount, savedTimeframe, savedAsset });
+
+      if (savedAmount) setTradeAmount(Number(savedAmount));
+      if (savedTimeframe) setSelectedTimeframe(savedTimeframe);
+      if (savedAsset) setSelectedAsset(savedAsset);
+
+      setIsSettingsLoaded(true); // Enable saving
+    }
+  }, []);
+
+  // 2. Save settings to localStorage on change (ONLY if loaded)
+  useEffect(() => {
+    if (isSettingsLoaded) localStorage.setItem('binary_trade_amount', tradeAmount);
+  }, [tradeAmount, isSettingsLoaded]);
+
+  useEffect(() => {
+    if (isSettingsLoaded) localStorage.setItem('binary_selected_timeframe', selectedTimeframe);
+  }, [selectedTimeframe, isSettingsLoaded]);
+
+  useEffect(() => {
+    if (isSettingsLoaded) localStorage.setItem('binary_selected_asset', selectedAsset);
+  }, [selectedAsset, isSettingsLoaded]);
+
+  // -- PERSISTENCE LOGIC END --
 
   useEffect(() => {
     selectedAssetRef.current = selectedAsset;
@@ -180,7 +259,7 @@ export default function Home() {
     setTicks([]);
 
     socketInstance.on('connect', () => {
-      console.log('Connected to socket', socketInstance.id);
+      // console.log('Connected to socket', socketInstance.id);
       setIsConnected(true);
 
       // Subscribe to selected asset
