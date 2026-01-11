@@ -57,9 +57,12 @@ const io = new Server(httpServer, {
 
 // Routes
 const analyticsRoutes = require('./routes/analytics');
+const userRoutes = require('./routes/users');
 
-// Use Routes
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/users', userRoutes);
+
+
 
 // Market state
 let marketState = {
