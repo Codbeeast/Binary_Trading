@@ -673,31 +673,34 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         const map = { '5s': 5000, '15s': 15000, '30s': 30000, '1m': 60000 };
         if (timeframe in map) duration = map[timeframe];
 
-        const startTime = activeCandle.timestamp ? activeCandle.timestamp.getTime() : Date.now();
-        const elapsed = Date.now() - startTime;
-        const remain = Math.max(0, duration - elapsed);
+        const timestamp = activeCandle.timestamp;
+        if (timestamp && !isNaN(timestamp.getTime())) {
+          const startTime = timestamp.getTime();
+          const elapsed = Date.now() - startTime;
+          const remain = Math.max(0, duration - elapsed);
 
-        // Format MM:SS
-        let totalSeconds = Math.ceil(remain / 1000);
+          // Format MM:SS
+          let totalSeconds = Math.ceil(remain / 1000);
 
-        // Clamp to max duration to avoid showing e.g. 6s or 7s for a 5s candle (due to clock drift)
-        const maxSeconds = duration / 1000;
-        if (totalSeconds > maxSeconds) totalSeconds = maxSeconds;
+          // Clamp to max duration to avoid showing e.g. 6s or 7s for a 5s candle (due to clock drift)
+          const maxSeconds = duration / 1000;
+          if (totalSeconds > maxSeconds) totalSeconds = maxSeconds;
 
-        const mm = Math.floor(totalSeconds / 60);
-        const ss = totalSeconds % 60;
-        const text = `${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`;
+          const mm = Math.floor(totalSeconds / 60);
+          const ss = totalSeconds % 60;
+          const text = `${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`;
 
-        // Draw Text
-        ctx.save();
-        ctx.fillStyle = "#E3E5E8"; // Light/White text
-        ctx.font = "500 12px monospace"; // Monospace for stable jitter
-        ctx.textAlign = "right";
-        ctx.shadowColor = "#000000";
-        ctx.shadowBlur = 4;
-        // Position: slightly left of the solid line end, just above the line
-        ctx.fillText(text, width - padding.right - 15, priceY - 6);
-        ctx.restore();
+          // Draw Text
+          ctx.save();
+          ctx.fillStyle = "#E3E5E8"; // Light/White text
+          ctx.font = "500 12px monospace"; // Monospace for stable jitter
+          ctx.textAlign = "right";
+          ctx.shadowColor = "#000000";
+          ctx.shadowBlur = 4;
+          // Position: slightly left of the solid line end, just above the line
+          ctx.fillText(text, width - padding.right - 15, priceY - 6);
+          ctx.restore();
+        }
       }
 
       // 7. Price label (Right side)
