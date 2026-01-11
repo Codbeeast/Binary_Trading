@@ -17,7 +17,7 @@ export default function TimeframeSelector({ selected, onChange }) {
           key={tf.value}
           onClick={() => onChange(tf.value)}
           className={`
-            relative px-3 h-7 rounded-md text-[11px] font-bold transition-all
+          relative px-2 lg:px-3 h-6 lg:h-7 rounded-md text-[10px] lg:text-[11px] font-bold transition-all
             ${selected === tf.value
               ? 'bg-[#2A2E39] text-white shadow-md shadow-black/20'
               : 'text-gray-400 hover:text-gray-200 hover:bg-[#2A2E39]/50'

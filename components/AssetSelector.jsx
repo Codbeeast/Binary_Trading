@@ -47,22 +47,22 @@ export default function AssetSelector({ selectedAsset, onSelect }) {
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#20232B] to-[#1B1E24] border border-white/5 px-3 py-2 text-xs hover:border-white/10 transition-colors"
+                className="flex items-center gap-1.5 lg:gap-2 rounded-lg bg-gradient-to-br from-[#20232B] to-[#1B1E24] border border-white/5 px-2 lg:px-3 py-1.5 lg:py-2 text-xs hover:border-white/10 transition-colors"
             >
                 <div className="flex flex-col leading-tight items-start">
                     <div className="flex items-center gap-1.5">
-                        <span className="text-[13px] font-semibold text-[#F9FAFB]">{currentAsset.name}</span>
-                        <span className="text-[10px] text-gray-500">{currentAsset.symbol}</span>
+                        <span className="text-[12px] lg:text-[13px] font-semibold text-[#F9FAFB]">{currentAsset.name}</span>
+                        <span className="hidden lg:inline text-[10px] text-gray-500">{currentAsset.symbol}</span>
                     </div>
                 </div>
-                <div className="ml-2 px-2 py-0.5 rounded-md bg-[#111827] text-[11px] font-semibold text-emerald-400">
+                <div className="ml-1 lg:ml-2 px-1.5 lg:px-2 py-0.5 rounded-md bg-[#111827] text-[10px] lg:text-[11px] font-semibold text-emerald-400">
                     {currentAsset.payout}%
                 </div>
                 <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isOpen && (
-                <div className="absolute top-full left-0 mt-2 w-[320px] bg-[#1C1F27] border border-[#2C303A] rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                <div className="absolute top-full left-0 mt-2 w-[280px] lg:w-[320px] bg-[#1C1F27] border border-[#2C303A] rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
                     {/* Search */}
                     <div className="p-3 border-b border-[#2C303A]">
                         <div className="relative">
@@ -85,8 +85,8 @@ export default function AssetSelector({ selectedAsset, onSelect }) {
                                 key={cat}
                                 onClick={() => setActiveCategory(cat)}
                                 className={`px-2.5 py-1.5 rounded-md text-[10px] font-medium whitespace-nowrap transition-colors ${activeCategory === cat
-                                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                        : 'text-gray-400 hover:text-gray-200 hover:bg-[#2C303A]'
+                                    ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                    : 'text-gray-400 hover:text-gray-200 hover:bg-[#2C303A]'
                                     }`}
                             >
                                 {cat}

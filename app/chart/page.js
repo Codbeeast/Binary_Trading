@@ -3,16 +3,17 @@
 import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import TradingChart from "@/components/TradingChart";
-import PriceDisplay from "@/components/PriceDisplay";
 import TimeframeSelector from "@/components/TimeframeSelector";
 import TimeSelector from "@/components/TimeSelector";
-import MarketStats from "@/components/MarketStats";
 import RecentTrades from "@/components/RecentTrades";
 import AssetSelector from "@/components/AssetSelector";
-import { BarChart3 as IndicatorIcon, ZoomIn, ZoomOut, User } from "lucide-react";
+import { User, Layers, ArrowRightSquare, ArrowLeftSquare, X, Menu, SlidersHorizontal } from "lucide-react";
 
 export default function Home() {
   const [userId, setUserId] = useState(null);
+
+  // UI State for Mobile
+  const [isTradePanelOpen, setIsTradePanelOpen] = useState(false);
 
   useEffect(() => {
     let id = localStorage.getItem('binary_user_id');
@@ -51,8 +52,6 @@ export default function Home() {
     high24h: 0,
     low24h: 0,
   });
-  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
-  const isHistoryLoadedRef = useRef(false);
 
   const [activeTrades, setActiveTrades] = useState([]);
   const [tradeResults, setTradeResults] = useState([]);
@@ -60,7 +59,6 @@ export default function Home() {
 
   const tickCountRef = useRef(0);
   const priceHistoryRef = useRef([]);
-  const blockedTimestampRef = useRef(null);
 
   // Derived state: Get candles for the currently selected timeframe
   const candles = candlesMap[selectedTimeframe] || [];
@@ -137,6 +135,7 @@ export default function Home() {
     };
 
     setActiveTrades(prev => [...prev, newTrade]);
+    // Close panel on mobile after trade if desired, or keep open. Keeping open for rapid trading.
 
     if (socket && isConnected) {
       socket.emit('place_trade', {
@@ -366,30 +365,19 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="mx-auto flex w-full h-[calc(100vh-48px)] gap-0">
-
-
-        <section className="flex-1 flex flex-col min-w-0 bg-[#0F1115]">
+      <div className="mx-auto flex w-full h-[calc(100vh-64px)] flex-col lg:flex-row gap-0">
+        <section className="flex-1 flex flex-col min-w-0 bg-[#0F1115] min-h-[50vh] lg:min-h-0">
           <div className="flex-1 relative bg-[#16181D] overflow-hidden flex flex-col">
-            {/* <div className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-[#20232B] to-[#1B1E24] border border-white/5 px-3 py-2 text-xs">
-              <div className="flex flex-col leading-tight">
-                <span className="text-[11px] uppercase tracking-[0.16em] text-gray-400">Crypto IDX</span>
-                <span className="text-[13px] font-semibold text-[#F9FAFB]">BTC / USDT</span>
-              </div>
-              <div className="ml-2 px-2 py-1 rounded-md bg-[#111827] text-[11px] font-semibold text-emerald-400">
-                82%
-              </div>
-            </div> */}
-
-            <div className="absolute left-4 top-20 z-20 flex flex-col gap-2">
+            {/* Mobile Trade Notifications (Top Left) */}
+            <div className="absolute left-4 top-4 lg:top-20 z-20 flex flex-col gap-2 pointer-events-none">
               {activeTrades.map(trade => {
                 const timeLeft = Math.max(0, Math.ceil((trade.expiryTime - Date.now()) / 1000));
                 if (timeLeft <= 0) return null;
                 return (
                   <div key={trade.id} className={`
-                    flex items-center gap-3 px-3 py-2 rounded-lg backdrop-blur-md border border-white/10 shadow-lg min-w-[140px]
-                    ${trade.direction === 'up' ? 'bg-[#064e3b]/80 border-l-4 border-l-emerald-500' : 'bg-[#4c0519]/80 border-l-4 border-l-rose-500'}
-                  `}>
+                      flex items-center gap-3 px-3 py-2 rounded-lg backdrop-blur-md border border-white/10 shadow-lg min-w-[120px] pointer-events-auto
+                      ${trade.direction === 'up' ? 'bg-[#064e3b]/80 border-l-4 border-l-emerald-500' : 'bg-[#4c0519]/80 border-l-4 border-l-rose-500'}
+                    `}>
                     <div className="flex flex-col">
                       <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">
                         {trade.direction === 'up' ? 'BUY' : 'SELL'}
@@ -409,9 +397,6 @@ export default function Home() {
 
             <div className="flex flex-col h-full">
               <div className="relative bg-[#16181D] overflow-hidden flex-1 w-full h-full">
-
-                {/* Removed decorative lines/borders that constrain the view */}
-
                 <TradingChart
                   candles={candles}
                   currentPrice={currentPrice}
@@ -419,21 +404,19 @@ export default function Home() {
                   direction={marketState.direction}
                   activeTrades={activeTrades}
                   onCandlePersist={handleCandlePersist}
-                  key={selectedAsset} // Force remount on asset change
+                  key={selectedAsset}
                 />
 
-
-
                 {tradeResults.map(result => (
-                  <div key={result.id} className="absolute bottom-20 right-4 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <div key={result.id} className="absolute bottom-4 right-4 lg:bottom-20 lg:right-4 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     <div className={`
-                      flex items-center gap-4 px-6 py-4 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] border
-                      ${result.result === 'PROFIT' ? 'bg-[#1C2A20] border-emerald-500/50' : 'bg-[#2A1C1C] border-rose-500/50'}
-                    `}>
-                      <div className={`
-                        flex items-center justify-center w-10 h-10 rounded-full font-bold
-                        ${result.result === 'PROFIT' ? 'bg-emerald-500 text-black' : 'bg-rose-500 text-white'}
+                        flex items-center gap-4 px-6 py-4 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] border
+                        ${result.result === 'PROFIT' ? 'bg-[#1C2A20] border-emerald-500/50' : 'bg-[#2A1C1C] border-rose-500/50'}
                       `}>
+                      <div className={`
+                          flex items-center justify-center w-10 h-10 rounded-full font-bold
+                          ${result.result === 'PROFIT' ? 'bg-emerald-500 text-black' : 'bg-rose-500 text-white'}
+                        `}>
                         {result.result === 'PROFIT' ? '+$' : '-$'}
                       </div>
                       <div className="flex flex-col">
@@ -442,9 +425,6 @@ export default function Home() {
                         </span>
                         <span className="text-xl font-bold text-white">
                           {result.result === 'PROFIT' ? `+₹${result.amount.toFixed(2)}` : '₹0.00'}
-                        </span>
-                        <span className="text-[10px] text-gray-400 mt-1">
-                          {result.entryPrice.toFixed(2)} ➔ {result.exitPrice.toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -455,64 +435,62 @@ export default function Home() {
           </div>
         </section>
 
-        <aside className="hidden lg:flex w-[260px] flex-col border-l border-[#262932] bg-[#16181F] px-4 py-4 gap-4 text-[12px] h-[calc(100vh-64px)] sticky top-[64px]">
-          <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 space-y-3">
-            <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
-              <span>Amount</span>
-              <span className="text-gray-500">INR</span>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">₹</span>
-                <input
-                  type="number"
-                  value={tradeAmount}
-                  onChange={handleAmountChange}
-                  className="w-full bg-[#16181F] text-white font-bold pl-7 pr-3 py-1.5 rounded-lg border border-[#2C303A] outline-none text-lg"
-                />
+        {/* Sidebar Controls - Vertical on mobile, persistent */}
+        <aside className="w-full lg:w-[260px] flex flex-col border-t lg:border-t-0 lg:border-l border-[#262932] bg-[#16181F] px-4 py-4 gap-4 text-[12px] h-auto lg:h-full lg:sticky lg:top-[64px] z-30">
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
+            <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 space-y-3">
+              <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                <span>Amount</span>
+                <span className="text-gray-500">INR</span>
               </div>
-              <div className="flex gap-1">
-                <button onClick={decrementAmount} className="h-9 w-9 rounded-lg bg-[#262A34] text-gray-200 text-lg font-bold">-</button>
-                <button onClick={incrementAmount} className="h-9 w-9 rounded-lg bg-[#262A34] text-gray-200 text-lg font-bold">+</button>
+              <div className="flex items-center justify-between gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">₹</span>
+                  <input
+                    type="number"
+                    value={tradeAmount}
+                    onChange={handleAmountChange}
+                    className="w-full bg-[#16181F] text-white font-bold pl-7 pr-3 py-1.5 rounded-lg border border-[#2C303A] outline-none text-lg"
+                  />
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={decrementAmount} className="h-9 w-9 rounded-lg bg-[#262A34] text-gray-200 text-lg font-bold">-</button>
+                  <button onClick={incrementAmount} className="h-9 w-9 rounded-lg bg-[#262A34] text-gray-200 text-lg font-bold">+</button>
+                </div>
+              </div>
+              <TimeSelector duration={tradeDuration} onDurationChange={setTradeDuration} />
+            </div>
+
+            <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 space-y-3 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between text-[11px] text-gray-400">
+                  <span>Earnings</span>
+                  <span className="text-emerald-400 font-semibold">+82%</span>
+                </div>
+                <div className="flex items-center justify-between text-[12px] text-gray-100 mt-1">
+                  <span>Potential</span>
+                  <span>₹{(tradeAmount * 1.82).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <button
+                  onClick={() => handleTrade('up')}
+                  className="flex flex-col items-center justify-center rounded-lg bg-emerald-500 text-[#04110A] py-3 text-sm font-bold active:scale-95 transition-transform"
+                >
+                  <span>UP</span>
+                </button>
+                <button
+                  onClick={() => handleTrade('down')}
+                  className="flex flex-col items-center justify-center rounded-lg bg-rose-500 text-[#14030A] py-3 text-sm font-bold active:scale-95 transition-transform"
+                >
+                  <span>DOWN</span>
+                </button>
               </div>
             </div>
-            <TimeSelector duration={tradeDuration} onDurationChange={setTradeDuration} />
           </div>
 
-          <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 space-y-3">
-            <div className="flex items-center justify-between text-[11px] text-gray-400">
-              <span>Earnings</span>
-              <span className="text-emerald-400 font-semibold">+82%</span>
-            </div>
-            <div className="flex items-center justify-between text-[12px] text-gray-100">
-              <span>Potential</span>
-              <span>₹{(tradeAmount * 1.82).toFixed(2)}</span>
-            </div>
-            <div className="mt-3 text-[11px] text-gray-400">Majority opinion</div>
-            <div className="mt-1 flex items-center gap-2">
-              <div className="h-2 flex-1 rounded-full bg-[#1F2933] overflow-hidden flex">
-                <div className="h-full w-[39%] bg-emerald-500" />
-                <div className="h-full flex-1 bg-rose-500" />
-              </div>
-              <span className="text-[10px] text-gray-400">39% / 61%</span>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button
-                onClick={() => handleTrade('up')}
-                className="flex flex-col items-center justify-center rounded-lg bg-emerald-500 text-[#04110A] py-2 text-xs font-semibold"
-              >
-                <span>Up</span>
-              </button>
-              <button
-                onClick={() => handleTrade('down')}
-                className="flex flex-col items-center justify-center rounded-lg bg-rose-500 text-[#14030A] py-2 text-xs font-semibold"
-              >
-                <span>Down</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-[#2C303A] bg-[#1C1F27]">
+          <div className="hidden lg:flex flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-[#2C303A] bg-[#1C1F27]">
             <RecentTrades trades={tradeHistory} asset={selectedAsset} />
           </div>
         </aside>
