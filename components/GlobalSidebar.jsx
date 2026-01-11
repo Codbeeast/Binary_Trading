@@ -45,7 +45,7 @@ export default function GlobalSidebar({
             {/* Mobile Trigger */}
             <button
                 onClick={() => setIsMobileOpen(true)}
-                className="fixed left-4 top-3 z-50 p-2 rounded-lg bg-[#262932] text-gray-400 md:hidden hover:bg-[#2E323E] hover:text-white transition-colors"
+                className="fixed left-4 top-3 z-[60] p-2 rounded-lg bg-[#262932] text-gray-400 md:hidden hover:bg-[#2E323E] hover:text-white transition-colors"
             >
                 <Menu className="w-5 h-5" />
             </button>
@@ -87,12 +87,13 @@ export default function GlobalSidebar({
                 </div>
 
                 {/* Mobile Header (Close Button) */}
-                <div className="flex items-center justify-between p-4 md:hidden border-b border-[#262932] absolute top-0 right-0 left-0 bg-[#16181F] z-20">
-                    <span className="font-bold text-white text-lg">Menu</span>
-                    <button onClick={() => setIsMobileOpen(false)} className="text-gray-400 p-2">
-                        <X className="w-6 h-6" />
-                    </button>
-                </div>
+                {isMobileOpen &&
+                    <div className="flex items-center justify-between p-4 md:hidden border-b border-[#262932] absolute top-0 right-0 left-0 bg-[#16181F] z-20">
+                        <span className="font-bold text-white text-lg">Menu</span>
+                        <button onClick={() => setIsMobileOpen(false)} className="text-gray-400 p-2">
+                            <X className="w-6 h-6" />
+                        </button>
+                    </div>}
 
                 {/* Navigation Items */}
                 <div className="flex-1 py-8 flex flex-col gap-3 px-4">

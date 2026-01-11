@@ -326,7 +326,7 @@ export default function Home() {
 
             {/* Mobile: 'F' Logo */}
             <div className="lg:hidden flex items-center gap-2">
-              <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold italic text-xl">
+              <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold italic text-xl mt-1 ml-1">
                 F
               </div>
             </div>
@@ -402,7 +402,7 @@ export default function Home() {
             {/* Mobile Floating Overlays */}
             <div className="lg:hidden absolute top-4 left-4 z-10 max-w-[50%]">
               {/* Floating Asset Selector */}
-              <div className="shadow-lg shadow-black/40 rounded-lg overflow-hidden">
+              <div className="shadow-lg shadow-black/40 rounded-lg">
                 <AssetSelector
                   selectedAsset={selectedAsset}
                   onSelect={(asset) => {
@@ -529,9 +529,9 @@ export default function Home() {
         <div className="flex items-center justify-between lg:hidden mb-2">
           <span className="font-bold text-white">Menu</span>
           {
-         isTradePanelOpen&& <button onClick={() => setIsTradePanelOpen(false)} className="p-1 rounded-md hover:bg-[#2C303A] text-gray-400">
-            <X className="w-5 h-5" />
-          </button>}
+            isTradePanelOpen && <button onClick={() => setIsTradePanelOpen(false)} className="p-1 rounded-md hover:bg-[#2C303A] text-gray-400">
+              <X className="w-5 h-5" />
+            </button>}
         </div>
         {/* Content */}
         <div className="flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-[#2C303A] bg-[#1C1F27]">

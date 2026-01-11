@@ -72,7 +72,6 @@ export default function AssetSelector({ selectedAsset, onSelect }) {
                                 placeholder="Search assets..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                autoFocus
                                 className="w-full bg-[#16181F] text-white text-[11px] pl-9 pr-3 py-2 rounded-lg border border-[#262932] focus:border-blue-500/50 outline-none placeholder:text-gray-600"
                             />
                         </div>
