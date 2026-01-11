@@ -1,4 +1,8 @@
+import { useSession } from "next-auth/react";
+import UserMenu from "@/components/UserMenu";
+
 export default function DashboardHeader({ period, setPeriod, refresh }) {
+    const { data: session } = useSession();
     const periods = [
         { id: 'today', label: 'Today' },
         { id: 'yesterday', label: 'Yesterday' },
@@ -17,21 +21,26 @@ export default function DashboardHeader({ period, setPeriod, refresh }) {
                 </p>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#1C1F26] p-1 rounded-lg border border-[#262932]">
-                {periods.map((p) => (
-                    <button
-                        key={p.id}
-                        onClick={() => setPeriod(p.id)}
-                        className={`
-              px-3 py-1.5 text-xs font-semibold rounded-md transition-all
-              ${period === p.id
-                                ? 'bg-[#2E323E] text-white shadow-sm'
-                                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}
-            `}
-                    >
-                        {p.label}
-                    </button>
-                ))}
+            <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 bg-[#1C1F26] p-1 rounded-lg border border-[#262932]">
+                    {periods.map((p) => (
+                        <button
+                            key={p.id}
+                            onClick={() => setPeriod(p.id)}
+                            className={`
+                  px-3 py-1.5 text-xs font-semibold rounded-md transition-all
+                  ${period === p.id
+                                    ? 'bg-[#2E323E] text-white shadow-sm'
+                                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}
+                `}
+                        >
+                            {p.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* User Menu */}
+                <UserMenu user={session?.user} />
             </div>
         </div>
     );

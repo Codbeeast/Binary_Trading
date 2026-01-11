@@ -50,27 +50,10 @@ export default function AnalyticsPage() {
     return (
         <div className="min-h-screen bg-[#111318] text-[#E3E5E8] font-sans selection:bg-orange-500/30">
             {/* Top Navigation */}
-            <header className="sticky top-0 z-50 border-b border-[#262932] bg-[#16181F]/80 backdrop-blur-md">
-                <div className="mx-auto max-w-[1600px] px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-8">
-
-
-
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <div className="hidden md:flex flex-col text-right leading-tight">
-                            <span className="text-xs text-gray-500">ID: {userId?.substring(5)}...</span>
-                            <span className="text-xs font-semibold text-gray-300">India 🇮🇳</span>
-                        </div>
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs ring-2 ring-[#262932]">
-                            {userId?.charAt(5)?.toUpperCase()}
-                        </div>
-                    </div>
-                </div>
-            </header>
-
             <main className="mx-auto max-w-[1600px] p-4 md:p-6 lg:p-8 space-y-6">
+                {/* Dashboard Controls */}
+                <DashboardHeader period={period} setPeriod={setPeriod} />
+
                 {/* User Identity & Balance Section */}
                 <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* User Profile Card */}
@@ -122,8 +105,7 @@ export default function AnalyticsPage() {
                     </div>
                 </section>
 
-                {/* Dashboard Controls */}
-                <DashboardHeader period={period} setPeriod={setPeriod} />
+
 
                 {loading ? (
                     <div className="h-64 flex items-center justify-center">

@@ -76,7 +76,7 @@ export default function RegisterPage() {
                         Create Account
                     </h1>
                     <p className="text-gray-400 text-sm">
-                        Join the elite trading platform
+                        Sign Up To Get Started
                     </p>
                 </div>
 
@@ -119,7 +119,7 @@ export default function RegisterPage() {
                                     type="text"
                                     required
                                     className="w-full bg-[#16181F] border border-[#2C303A] text-white rounded-xl px-10 py-3 outline-none focus:border-[#FF5722]/50 focus:ring-1 focus:ring-[#FF5722]/50 transition-all placeholder:text-gray-600"
-                                    placeholder="John Doe"
+                                    placeholder="Type Your Name"
                                     value={form.name}
                                     onChange={e => setForm({ ...form, name: e.target.value })}
                                 />

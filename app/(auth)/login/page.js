@@ -70,7 +70,7 @@ export default function LoginPage() {
                         Welcome Back
                     </h1>
                     <p className="text-gray-400 text-sm">
-                        Sign in to access elite trading tools
+                        Sign in to access
                     </p>
                 </div>
 

@@ -20,7 +20,8 @@ export default function Shell({ children }) {
             <div
                 className={cn(
                     "min-h-screen transition-all duration-300 ease-in-out",
-                    pathname !== '/' && "lg:pl-[80px]" // Only add padding if not on home page
+                    // Add padding only if Sidebar is visible (not on home/auth)
+                    !['/', '/login', '/register'].includes(pathname) && (isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]")
                 )}
             >
                 {children}
