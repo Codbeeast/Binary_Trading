@@ -748,6 +748,14 @@ function startDataCleanup() {
 io.on('connection', (socket) => {
         console.log('👤 Client connected:', socket.id);
 
+        // Handle joining user room for multi-tab sync
+        socket.on('join_user', (userId) => {
+                if (userId) {
+                        socket.join(userId);
+                        console.log(`👤 Socket ${socket.id} joined user room: ${userId}`);
+                }
+        });
+
         // Handle subscription
         socket.on('subscribe', async (symbol) => {
                 const asset = symbol.toUpperCase(); // Ensure standard format
@@ -1013,15 +1021,26 @@ io.on('connection', (socket) => {
                 });
 
                 try {
-                        await Trade.create({
+                        const newTrade = await Trade.create({
                                 userId: tradeData.userId || socket.id,
                                 amount: tradeData.amount || 100,
                                 direction: tradeData.direction,
                                 entryPrice: tradeData.entryPrice,
-                                timeframe: '1m',
+                                timeframe: '1m', // Default or from client
                                 timestamp: new Date(),
-                                symbol: tradeData.symbol || 'BTCUSDT'
+                                symbol: tradeData.symbol || 'BTCUSDT',
+                                duration: tradeData.duration || 60, // Ensure duration is saved if sent
+                                payout: tradeData.payout, // Save potential payout if sent
                         });
+
+                        // Broadcast to the user's other tabs
+                        if (tradeData.userId) {
+                                io.to(tradeData.userId).emit('new_trade', {
+                                        ...newTrade.toObject(),
+                                        clientTradeId: tradeData.clientTradeId // Pass back unique client ID for de-dupe
+                                });
+                        }
+
                 } catch (err) {
                         console.error('Error saving trade:', err);
                 }

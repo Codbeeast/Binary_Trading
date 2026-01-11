@@ -222,7 +222,9 @@ export default function Home() {
         amount: tradeAmount,
         timeframe: selectedTimeframe,
         userId: userId, // Send persistent ID
-        symbol: selectedAsset // FIX: Send the selected asset symbol
+        symbol: selectedAsset, // FIX: Send the selected asset symbol
+        clientTradeId: newTrade.id, // Send unique ID for deduplication
+        duration: durationSeconds // Explicitly send duration
       });
     }
   };
@@ -262,8 +264,40 @@ export default function Home() {
       // console.log('Connected to socket', socketInstance.id);
       setIsConnected(true);
 
+      // Join user-specific room for multi-tab sync
+      if (userId) {
+        socketInstance.emit('join_user', userId);
+      }
+
       // Subscribe to selected asset
       socketInstance.emit('subscribe', selectedAsset);
+    });
+
+    // Handle new trade broadcast from other tabs
+    socketInstance.on('new_trade', (trade) => {
+      // If the trade already exists (added optimistically), skip or update it
+      // We use clientTradeId for deduplication if provided, or fallback to database ID match
+      setActiveTrades(prev => {
+        const exists = prev.some(t =>
+          (trade.clientTradeId && t.id === trade.clientTradeId) || t.id === trade._id
+        );
+
+        if (exists) return prev;
+
+        // Otherwise, add this new trade (it came from another tab)
+        // Need to ensure format matches `activeTrades` structure
+        return [...prev, {
+          id: trade.clientTradeId || trade._id, // Use persistent ID
+          direction: trade.direction,
+          amount: trade.amount,
+          entryPrice: trade.entryPrice,
+          startTime: new Date(trade.timestamp).getTime(),
+          expiryTime: new Date(trade.timestamp).getTime() + ((trade.duration || 60) * 1000), // Reconstruct expiry
+          duration: trade.duration || 60,
+          asset: trade.symbol,
+          isSynced: true // Debug flag
+        }];
+      });
     });
 
     socketInstance.on('disconnect', () => {
