@@ -572,13 +572,13 @@ export default function Home() {
 
             {/* Results Popup */}
             {tradeResults.map(result => (
-              <div key={result.id} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-in fade-in zoom-in duration-300">
+              <div key={result.id} className="absolute bottom-12 right-16 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div className={`
-                        flex flex-col items-center gap-2 px-8 py-6 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] border-2
-                        ${result.result === 'PROFIT' ? 'bg-[#1C2A20] border-emerald-500' : 'bg-[#2A1C1C] border-rose-500'}
+                        flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl shadow-2xl shadow-black/60 border border-white/10
+                        ${result.result === 'PROFIT' ? 'bg-[#1C2A20] border-emerald-500/50' : 'bg-[#2A1C1C] border-rose-500/50'}
                       `}>
-                  <div className="text-2xl font-black text-white tracking-widest">{result.result}</div>
-                  <div className={`text-4xl font-bold ${result.result === 'PROFIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <div className="text-sm font-black text-white/90 tracking-widest uppercase">{result.result}</div>
+                  <div className={`text-xl font-bold ${result.result === 'PROFIT' ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {result.result === 'PROFIT' ? `+₹${result.amount.toFixed(2)}` : `-₹${(result.investment || 0).toFixed(2)}`}
                   </div>
                 </div>

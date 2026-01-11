@@ -777,7 +777,7 @@ io.on('connection', (socket) => {
 
         // Handle placing a trade
         socket.on('place_trade', async (data) => {
-                console.log('📝 Trade Request:', data);
+                
                 try {
                         const { direction, amount, timeframe, userId, symbol, clientTradeId, duration } = data;
 
@@ -809,7 +809,6 @@ io.on('connection', (socket) => {
                         });
 
                         await newTrade.save();
-                        console.log(`✅ Trade saved for user ${userId}: ${newTrade._id}`);
 
                         // Notify user (and other tabs)
                         if (userId) {
@@ -850,7 +849,7 @@ io.on('connection', (socket) => {
                                                         symbol
                                                 });
                                         }
-                                        console.log(`🏁 Trade resolved: ${newTrade._id} (${result})`);
+
 
                                 } catch (err) {
                                         console.error('Error resolving trade:', err);
