@@ -56,7 +56,7 @@ export default function Footer() {
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-800 to-transparent opacity-50" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div className="relative w-full mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Newsletter section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

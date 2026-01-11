@@ -11,7 +11,7 @@ import Footer from '@/components/landing/Footer';
 
 export default function LandingPage() {
   return (
-    <div className="relative min-h-screen bg-dark-900">
+    <div className="relative min-h-screen  bg-dark-900">
       {/* Navigation */}
       <Navigation />
 

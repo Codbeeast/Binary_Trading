@@ -71,7 +71,7 @@ export default function Pricing() {
       <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-900" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-brand-orange/5 via-transparent to-transparent" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative w-full mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -181,8 +181,8 @@ export default function Pricing() {
                 {/* CTA button */}
                 <button
                   className={`w-full py-3 rounded-xl font-semibold transition-all mb-8 ${plan.popular
-                      ? 'btn-premium'
-                      : 'btn-secondary hover:bg-white/10'
+                    ? 'btn-premium'
+                    : 'btn-secondary hover:bg-white/10'
                     }`}
                 >
                   Get Started

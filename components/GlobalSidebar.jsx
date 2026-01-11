@@ -26,6 +26,9 @@ export default function GlobalSidebar({
         setIsMobileOpen(false);
     }, [pathname, setIsMobileOpen]);
 
+    // Don't render sidebar on home page
+    if (pathname === '/') return null;
+
     const navItems = [
         { name: "Market", href: "/chart", icon: BarChart3 },
         { name: "Analytics", href: "/analytics", icon: LayoutDashboard },
@@ -45,7 +48,7 @@ export default function GlobalSidebar({
             {/* Mobile Trigger */}
             <button
                 onClick={() => setIsMobileOpen(true)}
-                className="fixed left-4 top-3 z-[60] p-2 rounded-lg bg-[#262932] text-gray-400 md:hidden hover:bg-[#2E323E] hover:text-white transition-colors"
+                className="fixed left-4 top-3 z-[60] p-2 rounded-lg bg-[#262932] text-gray-400 lg:hidden hover:bg-[#2E323E] hover:text-white transition-colors"
             >
                 <Menu className="w-5 h-5" />
             </button>
@@ -53,7 +56,7 @@ export default function GlobalSidebar({
             {/* Overlay for Mobile */}
             {isMobileOpen && (
                 <div
-                    className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden animate-in fade-in"
+                    className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden animate-in fade-in"
                     onClick={() => setIsMobileOpen(false)}
                 />
             )}
@@ -63,8 +66,8 @@ export default function GlobalSidebar({
                 className={cn(
                     "fixed top-0 left-0 z-[100] h-screen transition-all duration-300 ease-in-out flex flex-col",
                     "bg-[#111318] border-r border-[#262932]", // Deep dark background with subtle border
-                    isMobileOpen ? "translate-x-0 w-[280px]" : "-translate-x-full md:translate-x-0",
-                    isCollapsed ? "md:w-[80px]" : "md:w-[280px]" // Slightly wider collapsed/expanded states for "bigger" feel
+                    isMobileOpen ? "translate-x-0 w-[280px]" : "-translate-x-full lg:translate-x-0",
+                    isCollapsed ? "lg:w-[80px]" : "lg:w-[280px]" // Slightly wider collapsed/expanded states for "bigger" feel
                 )}
             >
                 {/* Brand / Logo Section */}
@@ -88,7 +91,7 @@ export default function GlobalSidebar({
 
                 {/* Mobile Header (Close Button) */}
                 {isMobileOpen &&
-                    <div className="flex items-center justify-between p-4 md:hidden border-b border-[#262932] absolute top-0 right-0 left-0 bg-[#16181F] z-20">
+                    <div className="flex items-center justify-between p-4 lg:hidden border-b border-[#262932] absolute top-0 right-0 left-0 bg-[#16181F] z-20">
                         <span className="font-bold text-white text-lg">Menu</span>
                         <button onClick={() => setIsMobileOpen(false)} className="text-gray-400 p-2">
                             <X className="w-6 h-6" />
@@ -161,7 +164,7 @@ export default function GlobalSidebar({
                     {/* Collapse Toggle (Desktop Only) */}
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
-                        className="hidden md:flex items-center justify-center w-full py-3 mt-2 rounded-xl bg-[#1A1D24] hover:bg-[#20232B] text-gray-400 hover:text-white transition-all duration-300 border border-[#262932] hover:border-gray-600"
+                        className="hidden lg:flex items-center justify-center w-full py-3 mt-2 rounded-xl bg-[#1A1D24] hover:bg-[#20232B] text-gray-400 hover:text-white transition-all duration-300 border border-[#262932] hover:border-gray-600"
                     >
                         <ChevronLeft className={cn(
                             "w-5 h-5 transition-transform duration-300",

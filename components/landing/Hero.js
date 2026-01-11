@@ -26,7 +26,7 @@ export default function Hero() {
       {/* Grid pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px]" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      <div className="relative w-full mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Left column - Content */}
           <motion.div
@@ -101,10 +101,10 @@ export default function Hero() {
                 <span>Start Trading Now</span>
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/demo" className="btn-secondary group">
+              {/* <Link href="/demo" className="btn-secondary group">
                 <PlayCircle className="w-5 h-5 mr-2 group-hover:text-brand-orange transition-colors" />
                 <span>Watch Demo</span>
-              </Link>
+              </Link> */}
             </motion.div>
 
             {/* Stats */}

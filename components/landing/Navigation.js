@@ -35,7 +35,7 @@ export default function Navigation() {
         : 'bg-transparent'
         }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
@@ -68,13 +68,13 @@ export default function Navigation() {
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-4">
             <Link
-              href="/demo"
+              href="/chart"
               className="px-5 py-2.5 text-gray-300 hover:text-white border border-gray-700 hover:border-brand-orange/50 rounded-lg transition-all duration-300 hover:shadow-lg hover:shadow-brand-orange/20"
             >
               Live Demo
             </Link>
             <Link
-              href="/admin"
+              href="/"
               className="btn-premium !px-5 !py-2.5 !rounded-lg !text-sm"
             >
               Login

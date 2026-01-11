@@ -405,7 +405,7 @@ export default function Home() {
 
             {/* Mobile: 'F' Logo */}
             <div className="lg:hidden flex items-center gap-2 landscape:ml-12">
-              <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold italic text-xl mt-1 ml-1">
+              <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold  text-xl mt-1 ml-1">
                 F
               </div>
             </div>

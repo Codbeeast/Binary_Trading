@@ -77,7 +77,7 @@ export default function Testimonials() {
       <div className="absolute inset-0 bg-gradient-to-b from-dark-900 via-dark-800 to-dark-900" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-brand-orange/5 via-transparent to-transparent" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative w-full mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -174,8 +174,8 @@ export default function Testimonials() {
                     setCurrentIndex(index);
                   }}
                   className={`h-2 rounded-full transition-all ${index === currentIndex
-                      ? 'w-8 bg-brand-orange'
-                      : 'w-2 bg-gray-600 hover:bg-gray-500'
+                    ? 'w-8 bg-brand-orange'
+                    : 'w-2 bg-gray-600 hover:bg-gray-500'
                     }`}
                   aria-label={`Go to testimonial ${index + 1}`}
                 />
