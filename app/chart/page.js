@@ -400,7 +400,7 @@ export default function Home() {
             />
 
             {/* Mobile Floating Overlays */}
-            <div className="lg:hidden landscape:hidden absolute top-4 left-4 z-10 max-w-[50%]">
+            <div className="lg:hidden landscape:hidden absolute top-2 left-2 z-10 max-w-[50%]">
               {/* Floating Asset Selector */}
               <div className="shadow-lg shadow-black/40 rounded-lg">
                 <AssetSelector
