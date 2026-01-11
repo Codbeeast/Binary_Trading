@@ -17,7 +17,13 @@ export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [userId, setUserId] = useState(null);
-  const [isLoading, setIsLoading] = useState(true); // New global loading state
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      setUserId(session.user.id);
+    }
+  }, [session]);
 
   // Protect Route
   useEffect(() => {
@@ -65,6 +71,9 @@ export default function Home() {
       if (savedTimeframe) setSelectedTimeframe(savedTimeframe);
       if (savedAsset) setSelectedAsset(savedAsset);
 
+      const savedDuration = localStorage.getItem('binary_trade_duration');
+      if (savedDuration) setTradeDuration(Number(savedDuration));
+
       setIsSettingsLoaded(true); // Enable saving
     }
   }, []);
@@ -81,6 +90,10 @@ export default function Home() {
   useEffect(() => {
     if (isSettingsLoaded) localStorage.setItem('binary_selected_asset', selectedAsset);
   }, [selectedAsset, isSettingsLoaded]);
+
+  useEffect(() => {
+    if (isSettingsLoaded) localStorage.setItem('binary_trade_duration', tradeDuration);
+  }, [tradeDuration, isSettingsLoaded]);
 
   // -- PERSISTENCE LOGIC END --
 
@@ -168,7 +181,15 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [activeTrades, currentPrice]);
 
+  const [isProcessingTrade, setIsProcessingTrade] = useState(false);
+
   const handleTrade = (direction) => {
+    if (isProcessingTrade) return;
+    setIsProcessingTrade(true);
+
+    // Re-enable after delay
+    setTimeout(() => setIsProcessingTrade(false), 1000);
+
     const durationSeconds = tradeDuration;
     const newTrade = {
       id: Date.now() + Math.random(),
@@ -239,6 +260,12 @@ export default function Home() {
 
       // Subscribe to selected asset
       socketInstance.emit('subscribe', selectedAsset);
+    });
+
+    // Handle historical trades load
+    socketInstance.on('user_trade_history', (history) => {
+      // console.log('Loaded history:', history.length);
+      setTradeHistory(history);
     });
 
     // Handle new trade broadcast from other tabs
@@ -388,7 +415,7 @@ export default function Home() {
       socketInstance.disconnect();
       clearInterval(statsInterval);
     };
-  }, [selectedAsset]);
+  }, [selectedAsset, userId]);
 
   if (status === "loading" || status === "unauthenticated") {
     return (

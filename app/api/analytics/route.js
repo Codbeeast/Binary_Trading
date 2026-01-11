@@ -9,37 +9,49 @@ export async function GET(request) {
         const period = searchParams.get('period') || 'today';
         const userId = searchParams.get('userId');
 
-        // Date filtering logic
+        // console.log(`📊 API Analytics Request - Period: ${period}, User: ${userId}`);
+
+        // Date filtering logic (Use UTC to match MongoDB)
         const now = new Date();
         let startDate = new Date();
 
         // Set start date based on period
         switch (period) {
             case 'today':
-                startDate.setHours(0, 0, 0, 0);
+                startDate.setUTCHours(0, 0, 0, 0);
                 break;
             case 'yesterday':
-                startDate.setDate(now.getDate() - 1);
-                startDate.setHours(0, 0, 0, 0);
-                // Special case for yesterday: we need an end date too
-                const endDate = new Date(now);
-                endDate.setDate(now.getDate() - 1);
-                endDate.setHours(23, 59, 59, 999);
+                startDate.setDate(startDate.getDate() - 1);
+                startDate.setUTCHours(0, 0, 0, 0);
+
+                // End of yesterday
+                const endDate = new Date(startDate);
+                endDate.setUTCHours(23, 59, 59, 999);
                 break;
             case 'week':
                 startDate.setDate(now.getDate() - 7);
+                startDate.setUTCHours(0, 0, 0, 0);
                 break;
             case 'month':
                 startDate.setMonth(now.getMonth() - 1);
+                startDate.setUTCHours(0, 0, 0, 0);
+                break;
+            case 'all':
+                startDate = new Date(0); // Epoch
                 break;
             default:
-                startDate.setHours(0, 0, 0, 0);
+                startDate.setUTCHours(0, 0, 0, 0);
         }
 
         const query = {
             timestamp: { $gte: startDate },
             ...(userId && { userId })
         };
+
+        console.log('🔍 Analytics Query:', JSON.stringify(query));
+
+        const testCount = await Trade.countDocuments(query);
+        console.log(`🔍 Found ${testCount} trades for query.`);
 
         // Handle 'yesterday' upper bound
         if (period === 'yesterday') {

@@ -12,26 +12,27 @@ import InstrumentChart from './components/InstrumentChart';
 import TradeDistribution from './components/TradeDistribution';
 import Link from 'next/link';
 
+import { useSession } from "next-auth/react";
+
 export default function AnalyticsPage() {
-    const [period, setPeriod] = useState('today');
+    const { data: session, status } = useSession();
+    const [period, setPeriod] = useState('all');
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
     const [userId, setUserId] = useState(null);
 
     useEffect(() => {
-        // Get distinct user ID
-        if (typeof window !== 'undefined') {
-            const storedId = localStorage.getItem('binary_user_id');
-            setUserId(storedId);
+        if (status === 'authenticated' && session?.user?.id) {
+            setUserId(session.user.id);
         }
-    }, []);
+    }, [session, status]);
 
     const fetchData = async () => {
         if (!userId) return;
         setLoading(true);
         try {
-            const BACKEND_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
-            const res = await fetch(`${BACKEND_URL}/api/analytics?period=${period}&userId=${userId}`);
+            // Use internal Next.js API for analytics (aggregation)
+            const res = await fetch(`/api/analytics?period=${period}&userId=${userId}`);
             const json = await res.json();
             setData(json);
         } catch (error) {

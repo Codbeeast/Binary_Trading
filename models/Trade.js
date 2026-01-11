@@ -12,7 +12,8 @@ const TradeSchema = new mongoose.Schema({
     symbol: { type: String, default: 'BTCUSDT' },
     duration: Number, // Duration in seconds
     expiryTime: Date,
-    payout: Number
+    payout: Number,
+    clientTradeId: String
 });
 
 // Prevent model recompilation error in development

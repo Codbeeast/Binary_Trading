@@ -7,7 +7,8 @@ export default function RecentTrades({ trades = [], asset }) {
     const [activeTab, setActiveTab] = useState('trades'); // 'trades' | 'orders'
 
     // Sort trades by completion time (newest first)
-    const sortedTrades = [...trades].reverse();
+    // Trades are already sorted by backend (newest first)
+    const sortedTrades = [...trades];
 
     const formatDate = (date) => {
         return new Date(date).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
@@ -15,7 +16,11 @@ export default function RecentTrades({ trades = [], asset }) {
 
     // Group trades by date
     const groupedTrades = sortedTrades.reduce((groups, trade) => {
-        const date = formatDate(trade.expiryTime);
+        // Use expiryTime, fallback to timestamp, fallback to now
+        const effectiveDate = trade.expiryTime || trade.timestamp || new Date();
+        const date = formatDate(effectiveDate);
+        if (date === 'Invalid Date') return groups; // Skip truly broken records
+
         if (!groups[date]) {
             groups[date] = [];
         }
@@ -79,13 +84,13 @@ export default function RecentTrades({ trades = [], asset }) {
                                                 <div className="flex items-center justify-center gap-1.5">
                                                     <div className="flex -space-x-1">
                                                         <div className="w-4 h-4 rounded-full bg-[#FACC15] flex items-center justify-center text-[8px] text-black font-bold z-10 border border-[#16181F]">
-                                                            {(trade.asset || asset || "C").charAt(0)}
+                                                            {(trade.symbol || asset || "C").charAt(0)}
                                                         </div>
                                                         <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-[8px] text-white font-bold border border-[#16181F]">
-                                                            {(trade.asset || asset) ? 'U' : 'I'}
+                                                            {(trade.symbol || asset) ? 'U' : 'I'}
                                                         </div>
                                                     </div>
-                                                    <span className="text-gray-200 font-bold">{trade.asset || asset || "Crypto IDX"}</span>
+                                                    <span className="text-gray-200 font-bold">{trade.symbol || asset || "Crypto IDX"}</span>
                                                 </div>
                                             </div>
                                             <span className="text-gray-400 font-mono text-[10px]">
@@ -105,8 +110,8 @@ export default function RecentTrades({ trades = [], asset }) {
                                                     {trade.amount} ₹
                                                 </span>
                                             </div>
-                                            <span className={`font-bold font-mono ${trade.result === 'PROFIT' ? 'text-[#FACC15]' : 'text-rose-500'}`}>
-                                                {trade.result === 'PROFIT' ? `+${trade.payout.toFixed(2)} ₹` : '0.00 ₹'}
+                                            <span className={`font-bold font-mono ${(trade.result === 'PROFIT' || trade.result === 'win') ? 'text-[#FACC15]' : 'text-rose-500'}`}>
+                                                {(trade.result === 'PROFIT' || trade.result === 'win') ? `+${(trade.payout || 0).toFixed(2)} ₹` : '0.00 ₹'}
                                             </span>
                                         </div>
                                     </div>

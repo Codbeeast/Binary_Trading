@@ -1,4 +1,5 @@
-require('dotenv').config(); // Load environment variables
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); // Load environment variables from root
 
 const { createServer } = require('http');
 const { Server } = require('socket.io');
@@ -57,12 +58,9 @@ const io = new Server(httpServer, {
 
 // Routes
 const analyticsRoutes = require('./routes/analytics');
-const userRoutes = require('./routes/users');
 
+// Use Routes
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/users', userRoutes);
-
-
 
 // Market state
 let marketState = {
@@ -725,10 +723,21 @@ io.on('connection', (socket) => {
         console.log('👤 Client connected:', socket.id);
 
         // Handle joining user room for multi-tab sync
-        socket.on('join_user', (userId) => {
+        socket.on('join_user', async (userId) => {
                 if (userId) {
                         socket.join(userId);
                         console.log(`👤 Socket ${socket.id} joined user room: ${userId}`);
+
+                        // Fetch and emit user's trade history
+                        try {
+                                const history = await Trade.find({ userId })
+                                        .sort({ timestamp: -1 })
+                                        .limit(50);
+
+                                socket.emit('user_trade_history', history);
+                        } catch (err) {
+                                console.error('Error fetching user trade history:', err);
+                        }
                 }
         });
 
@@ -763,6 +772,92 @@ io.on('connection', (socket) => {
                         }
                 } catch (error) {
                         console.error('Error fetching history:', error);
+                }
+        });
+
+        // Handle placing a trade
+        socket.on('place_trade', async (data) => {
+                console.log('📝 Trade Request:', data);
+                try {
+                        const { direction, amount, timeframe, userId, symbol, clientTradeId, duration } = data;
+
+                        // Idempotency Check: Prevent duplicate trades
+                        if (clientTradeId) {
+                                const existingTrade = await Trade.findOne({ clientTradeId });
+                                if (existingTrade) {
+                                        console.log(`⚠️ Duplicate trade skipped: ${clientTradeId}`);
+                                        return;
+                                }
+                        }
+
+                        // Get current price from memory state
+                        const state = getAssetState(symbol);
+                        const currentPrice = state ? state.marketState.currentPrice : 0;
+
+                        const newTrade = new Trade({
+                                userId,
+                                amount,
+                                direction,
+                                symbol: symbol || 'BTCUSDT',
+                                timeframe: timeframe || '1m',
+                                duration,
+                                entryPrice: currentPrice,
+                                result: 'pending',
+                                timestamp: new Date(),
+                                expiryTime: new Date(Date.now() + (duration * 1000)),
+                                clientTradeId
+                        });
+
+                        await newTrade.save();
+                        console.log(`✅ Trade saved for user ${userId}: ${newTrade._id}`);
+
+                        // Notify user (and other tabs)
+                        if (userId) {
+                                io.to(userId).emit('new_trade', { ...newTrade.toObject(), clientTradeId });
+                        }
+
+                        // Schedule Trade Resolution
+                        setTimeout(async () => {
+                                try {
+                                        // Fetch fresh state/price
+                                        const endState = getAssetState(symbol);
+                                        const closePrice = endState ? endState.marketState.currentPrice : 0;
+
+                                        // Determine Result
+                                        let result = 'loss';
+                                        if (direction === 'up' && closePrice > newTrade.entryPrice) result = 'win';
+                                        if (direction === 'down' && closePrice < newTrade.entryPrice) result = 'win';
+                                        if (closePrice === newTrade.entryPrice) result = 'tie';
+
+                                        // Calculate Payout
+                                        const payout = result === 'win' ? amount * 1.82 : 0;
+
+                                        // Update Trade in DB
+                                        newTrade.result = result === 'win' ? 'win' : 'loss';
+                                        newTrade.closePrice = closePrice;
+                                        newTrade.payout = payout;
+                                        await newTrade.save();
+
+                                        // Notify Client of Result
+                                        if (userId) {
+                                                io.to(userId).emit('trade_result', {
+                                                        id: newTrade._id,
+                                                        clientTradeId,
+                                                        result: result === 'win' ? 'PROFIT' : 'LOSS',
+                                                        amount: payout,
+                                                        closePrice,
+                                                        symbol
+                                                });
+                                        }
+                                        console.log(`🏁 Trade resolved: ${newTrade._id} (${result})`);
+
+                                } catch (err) {
+                                        console.error('Error resolving trade:', err);
+                                }
+                        }, duration * 1000);
+
+                } catch (error) {
+                        console.error('❌ Error placing trade:', error);
                 }
         });
 
@@ -977,50 +1072,7 @@ io.on('connection', (socket) => {
                 }
         });
 
-        // Handle new trade placement
-        socket.on('place_trade', async (tradeData) => {
-                console.log('💰 Trade received:', tradeData);
 
-                // Update local stats immediately
-                tradeStats.totalTrades++;
-                if (tradeData.direction === 'up') {
-                        tradeStats.buyCount++;
-                        tradeStats.buyVolume += (tradeData.amount || 0);
-                } else {
-                        tradeStats.sellCount++;
-                        tradeStats.sellVolume += (tradeData.amount || 0);
-                }
-
-                io.emit('stats_update', {
-                        ...tradeStats,
-                        activeUsers: io.engine.clientsCount
-                });
-
-                try {
-                        const newTrade = await Trade.create({
-                                userId: tradeData.userId || socket.id,
-                                amount: tradeData.amount || 100,
-                                direction: tradeData.direction,
-                                entryPrice: tradeData.entryPrice,
-                                timeframe: '1m', // Default or from client
-                                timestamp: new Date(),
-                                symbol: tradeData.symbol || 'BTCUSDT',
-                                duration: tradeData.duration || 60, // Ensure duration is saved if sent
-                                payout: tradeData.payout, // Save potential payout if sent
-                        });
-
-                        // Broadcast to the user's other tabs
-                        if (tradeData.userId) {
-                                io.to(tradeData.userId).emit('new_trade', {
-                                        ...newTrade.toObject(),
-                                        clientTradeId: tradeData.clientTradeId // Pass back unique client ID for de-dupe
-                                });
-                        }
-
-                } catch (err) {
-                        console.error('Error saving trade:', err);
-                }
-        });
 
         // Handle admin stats request
         socket.on('request_stats', () => {
