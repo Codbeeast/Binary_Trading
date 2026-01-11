@@ -325,14 +325,14 @@ export default function Home() {
             </button>
 
             {/* Mobile: 'F' Logo */}
-            <div className="lg:hidden landscape:hidden flex items-center gap-2">
+            <div className="lg:hidden flex items-center gap-2 landscape:ml-12">
               <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold italic text-xl mt-1 ml-1">
                 F
               </div>
             </div>
 
             {/* Desktop: Asset & Timeframe Selectors */}
-            <div className="hidden lg:flex landscape:flex landscape:ml-12 lg:ml-0 items-center gap-6">
+            <div className="hidden lg:flex landscape:flex landscape:ml-4  lg:ml-0 items-center gap-6">
               <AssetSelector
                 selectedAsset={selectedAsset}
                 onSelect={(asset) => {
@@ -375,7 +375,7 @@ export default function Home() {
             </button>
 
             {/* Profile Menu Trigger */}
-            <button className="hidden lg:flex landscape:flex h-10 w-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white items-center justify-center shadow-lg shadow-blue-600/20 transition-all transform hover:scale-105">
+            <button className="flex h-9 w-9 lg:h-10 lg:w-10 rounded-full bg-blue-600 hover:bg-blue-700 text-white items-center justify-center shadow-lg shadow-blue-600/20 transition-all transform hover:scale-105">
               <User className="h-5 w-5" />
             </button>
           </div>
