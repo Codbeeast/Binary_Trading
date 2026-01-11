@@ -310,7 +310,8 @@ export default function Home() {
   }, [selectedAsset]);
 
   return (
-    <main className="h-screen bg-[#111318] text-[#E3E5E8] flex flex-col overflow-hidden">
+    // Use 100dvh for proper mobile viewport height
+    <main className="h-[100dvh] bg-[#111318] text-[#E3E5E8] flex flex-col overflow-hidden">
       {/* Header */}
       <header className="shrink-0 border-b border-[#262932] bg-[#191B22] shadow-sm relative z-40">
         <div className="flex h-14 lg:h-16 items-center justify-between px-4 lg:px-6">
@@ -323,11 +324,10 @@ export default function Home() {
               <Menu className="h-5 w-5" />
             </button>
 
-            {/* Logo or Brand (Placeholder for now, just simplified) */}
+            {/* Mobile: 'F' Logo */}
             <div className="lg:hidden flex items-center gap-2">
-              {/* Mobile Logo Placeholder */}
-              <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center text-black font-bold italic">
-                B
+              <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold italic text-xl">
+                F
               </div>
             </div>
 
@@ -385,7 +385,7 @@ export default function Home() {
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Chart Section */}
-        <section className="flex-1 relative bg-[#0F1115] flex flex-col min-w-0">
+        <section className="flex-1 relative bg-[#0F1115] flex flex-col min-w-0 pl-1">
 
           {/* Chart Container */}
           <div className="flex-1 relative overflow-hidden">
@@ -415,8 +415,9 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Mobile Floating Timeframe (Bottom Left of Chart area, above controls) */}
-            <div className="lg:hidden absolute bottom-4 left-4 z-10">
+            {/* Mobile Floating Timeframe (Top Right, fixed position) */}
+            <div className="lg:hidden absolute top-0 right-4 z-20">
+              {/* Position adjusted to avoid Y-axis labels. Assuming labels take ~50-60px */}
               <div className="bg-[#1C1F27]/90 backdrop-blur rounded-lg border border-white/10 shadow-lg p-1">
                 <TimeframeSelector
                   selected={selectedTimeframe}
@@ -509,6 +510,34 @@ export default function Home() {
           </div>
         </aside>
       </div>
+
+      {/* Mobile Backdrop */}
+      {isTradePanelOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[60] lg:hidden backdrop-blur-sm transition-opacity"
+          onClick={() => setIsTradePanelOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Controls - Drawer on mobile */}
+      <aside className={`
+          fixed inset-y-0 left-0 z-[70] w-[280px] bg-[#16181F] border-r border-[#262932] flex flex-col px-4 py-4 gap-4 transition-transform duration-300 ease-in-out shadow-2xl
+          lg:hidden
+          ${isTradePanelOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        {/* Mobile Sidebar Header */}
+        <div className="flex items-center justify-between lg:hidden mb-2">
+          <span className="font-bold text-white">Menu</span>
+          {
+         isTradePanelOpen&& <button onClick={() => setIsTradePanelOpen(false)} className="p-1 rounded-md hover:bg-[#2C303A] text-gray-400">
+            <X className="w-5 h-5" />
+          </button>}
+        </div>
+        {/* Content */}
+        <div className="flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-[#2C303A] bg-[#1C1F27]">
+          <RecentTrades trades={tradeHistory} asset={selectedAsset} />
+        </div>
+      </aside>
 
       {/* Mobile Fixed Bottom Panel */}
       <div className="lg:hidden bg-[#16181F] border-t border-[#262932] px-4 pt-3 pb-safe z-50">
