@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import TradingChart from "@/components/TradingChart";
 import TimeframeSelector from "@/components/TimeframeSelector";
 import TimeSelector from "@/components/TimeSelector";
@@ -417,9 +418,9 @@ export default function Home() {
 
             {/* Mobile: 'F' Logo */}
             <div className="lg:hidden flex items-center gap-2 landscape:ml-12">
-              <div className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold  text-xl mt-1 ml-1">
+              <Link href="/" className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold text-xl mt-1 ml-1 hover:brightness-110 active:scale-95 transition-all cursor-pointer">
                 F
-              </div>
+              </Link>
             </div>
 
             {/* Desktop: Asset & Timeframe Selectors */}
