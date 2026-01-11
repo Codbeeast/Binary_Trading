@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "description": "paisa hi paisa",
   "scripts": {
-    "dev": "concurrently \"next dev\" \"node server.js\"",
+    "dev": "concurrently \"next dev\" \"node backend/server.js\"",
     "build": "next build",
-    "start": "concurrently \"next start\" \"node server.js\"",
+    "start": "concurrently \"next start\" \"node backend/server.js\"",
     "lint": "next lint",
-    "server": "node server.js"
+    "server": "node backend/server.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

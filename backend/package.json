@@ -1,0 +1,16 @@
+{
+    "name": "binary-trading-backend",
+    "version": "1.0.0",
+    "description": "Backend server for Binary Trading App",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node server.js"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.5",
+        "mongoose": "^8.9.3",
+        "socket.io": "^4.8.1",
+        "ws": "^8.16.0"
+    }
+}
