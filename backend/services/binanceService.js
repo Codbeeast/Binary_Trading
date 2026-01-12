@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 
 class BinanceService {
-  constructor(onError = null) {
+  constructor() {
     this.ws = null;
     this.streams = new Set();
     this.priceCallbacks = new Map(); // Map<symbol, Set<callback>>
@@ -11,9 +11,6 @@ class BinanceService {
     this.reconnectDelay = 5000;
     this.isConnected = false;
     this.connectionUrl = 'wss://stream.binance.com:9443/ws';
-    this.usConnectionUrl = 'wss://stream.binance.us:9443/ws';
-    this.usingUS = false;
-    this.onError = onError;
   }
 
   // Subscribe to a symbol
@@ -97,23 +94,6 @@ class BinanceService {
 
     this.ws.on('error', (error) => {
       console.error('❌ Binance WebSocket error:', error.message);
-
-      // Check for Geo-Block (451) or Connect Error
-      if (error.message.includes('451') || error.message.includes('Unexpected server response')) {
-        if (!this.usingUS) {
-          console.log('🇺🇸 Switching to Binance US WebSocket (Geo-Fix)...');
-          this.usingUS = true;
-          this.connectionUrl = this.usConnectionUrl;
-          this.disconnect();
-          this.connect(); // Immediate retry with US URL
-          return;
-        }
-
-        console.error('🚫 Binance Geo-Restriction detected on BOTH endpoints. Switching to Synthetic Mode.');
-        if (this.onError) this.onError('GEO_BLOCK');
-        this.disconnect();
-        this.maxReconnectAttempts = 0; // Stop trying
-      }
     });
 
     this.ws.on('close', () => {
