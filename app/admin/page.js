@@ -20,7 +20,16 @@ import AssetSelector from "@/components/AssetSelector";
 export default function AdminPage() {
     const [socket, setSocket] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
-    const [selectedAsset, setSelectedAsset] = useState('BTCUSDT');
+
+    // Initialize asset from LocalStorage if available
+    const [selectedAsset, setSelectedAsset] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('adminSelectedAsset');
+            return saved || 'BTCUSDT';
+        }
+        return 'BTCUSDT';
+    });
+
     const [marketState, setMarketState] = useState({
         direction: 'neutral',
         volatility: 1.0,
@@ -28,6 +37,43 @@ export default function AdminPage() {
         isActive: true,
         symbol: 'BTCUSDT'
     });
+
+    // Ref to track last user action time to prevent server overriding local optimistic updates
+    const lastActionTime = useRef(0);
+
+    // Load saved state for the SELECTED asset on mount or change
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        // Save selected asset to LS
+        localStorage.setItem('adminSelectedAsset', selectedAsset);
+
+        // Load settings for this specific asset
+        const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
+        const savedAssetData = allStates[selectedAsset];
+
+        if (savedAssetData) {
+            console.log(`📂 Loaded local settings for ${selectedAsset}:`, savedAssetData);
+            setMarketState(prev => ({ ...prev, ...savedAssetData }));
+            // Start buffer to prevent server override
+            lastActionTime.current = Date.now();
+        }
+    }, [selectedAsset]);
+
+    // Save state to LocalStorage (Dictionary) whenever it changes
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
+        allStates[selectedAsset] = {
+            direction: marketState.direction,
+            isActive: marketState.isActive,
+            volatility: marketState.volatility,
+            tickSpeed: marketState.tickSpeed,
+            symbol: selectedAsset
+        };
+        localStorage.setItem('adminAssetStates', JSON.stringify(allStates));
+    }, [marketState, selectedAsset]);
     // ... existing stats state ...
     const [stats, setStats] = useState({
         activeUsers: 0,
@@ -54,6 +100,24 @@ export default function AdminPage() {
             setIsConnected(true);
             newSocket.emit('request_stats', selectedAsset); // Fetch stats for THIS asset
             newSocket.emit('subscribe', selectedAsset); // Subscribe to selected asset to get its state
+
+            // RESTORE SERVER STATE from Local Storage (Client is Master)
+            const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
+            const savedAssetData = allStates[selectedAsset];
+
+            if (savedAssetData) {
+                console.log("🔄 Restoring Server State from Client:", savedAssetData);
+                // Mark this as a user action
+                lastActionTime.current = Date.now();
+
+                newSocket.emit('control_update', {
+                    symbol: selectedAsset,
+                    direction: savedAssetData.direction,
+                    isActive: savedAssetData.isActive,
+                    volatility: savedAssetData.volatility,
+                    tickSpeed: savedAssetData.tickSpeed
+                });
+            }
         });
 
         newSocket.on('disconnect', () => {
@@ -63,6 +127,10 @@ export default function AdminPage() {
 
         newSocket.on('market_state', (state) => {
             if (state.symbol === selectedAsset) {
+                // IGNORE server updates if user just clicked something (2s buffer)
+                if (Date.now() - lastActionTime.current < 2000) {
+                    return;
+                }
                 setMarketState(state);
             }
         });
@@ -90,6 +158,10 @@ export default function AdminPage() {
 
     const handleControlUpdate = (field, value) => {
         if (!socket) return;
+
+        // Mark action time
+        lastActionTime.current = Date.now();
+
         const updates = { [field]: value, symbol: selectedAsset };
         // Update local state immediately for better UX
         setMarketState(prev => ({ ...prev, [field]: value }));

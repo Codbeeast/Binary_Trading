@@ -969,7 +969,6 @@ io.on('connection', (socket) => {
 
         // Handle admin control updates
         socket.on('control_update', async (data) => {
-                console.log('🎮 Control update received:', data);
 
                 const requestedSymbol = data.symbol ? data.symbol.toUpperCase() : 'GLOBAL';
 
@@ -982,7 +981,6 @@ io.on('connection', (socket) => {
                         targets.push(requestedSymbol);
                 }
 
-                console.log(`🎯 Applying control update to ${targets.length} assets (${requestedSymbol})`);
 
                 targets.forEach(async (targetSymbol) => {
                         const state = getAssetState(targetSymbol);
@@ -993,7 +991,6 @@ io.on('connection', (socket) => {
 
                                 // If we are switching modes, handle the transition logic
                                 if (newDirection !== manipulationState.mode) {
-                                        console.log(`🔄 Mode Switch for ${targetSymbol}: ${manipulationState.mode} -> ${newDirection}`);
 
                                         const currentPrice = marketState.currentPrice;
                                         const realPrice = state.lastRealPrice;
