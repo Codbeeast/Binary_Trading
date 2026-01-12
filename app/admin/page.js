@@ -34,12 +34,14 @@ export default function AdminPage() {
         totalTrades: 0,
         buyCount: 0,
         sellCount: 0,
+        activeBuyCount: 0,
+        activeSellCount: 0,
         buyVolume: 0,
         sellVolume: 0,
     });
 
-    // Calculate sentiment percentages
-    const { buyPercentage, sellPercentage } = calculateSentiment(stats.buyCount, stats.sellCount);
+    // Calculate sentiment percentages based on REAL-TIME ACTIVE trades
+    const { buyPercentage, sellPercentage } = calculateSentiment(stats.activeBuyCount, stats.activeSellCount);
 
     useEffect(() => {
         const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
@@ -178,12 +180,12 @@ export default function AdminPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-4 mt-6">
                             <div className="bg-[#1C1F27] p-4 rounded-lg border border-[#2C303A]">
-                                <div className="text-sm text-gray-400 mb-1">Buy Orders</div>
-                                <div className="text-xl font-bold text-emerald-400">{stats.buyCount}</div>
+                                <div className="text-sm text-gray-400 mb-1">Active Buy Orders</div>
+                                <div className="text-xl font-bold text-emerald-400">{stats.activeBuyCount}</div>
                             </div>
                             <div className="bg-[#1C1F27] p-4 rounded-lg border border-[#2C303A]">
-                                <div className="text-sm text-gray-400 mb-1">Sell Orders</div>
-                                <div className="text-xl font-bold text-rose-400">{stats.sellCount}</div>
+                                <div className="text-sm text-gray-400 mb-1">Active Sell Orders</div>
+                                <div className="text-xl font-bold text-rose-400">{stats.activeSellCount}</div>
                             </div>
                         </div>
                     </section>

@@ -37,6 +37,8 @@ function getAssetStats(symbol) {
                         totalTrades: 0,
                         buyCount: 0,
                         sellCount: 0,
+                        activeBuyCount: 0, // Track active 'up' trades
+                        activeSellCount: 0, // Track active 'down' trades
                         buyVolume: 0,
                         sellVolume: 0,
                 });
@@ -875,6 +877,15 @@ io.on('connection', (socket) => {
                                 io.to(userId).emit('new_trade', { ...newTrade.toObject(), clientTradeId });
                         }
 
+                        // UPDATE STATS (Real-time Active Count)
+                        const stats = getAssetStats(symbol || 'BTCUSDT');
+                        if (direction === 'up') stats.activeBuyCount++;
+                        else stats.activeSellCount++;
+
+                        // stats.totalTrades++; // Moved to completion to prevent "double update" perception
+                        // Emit stats update to anyone listening (Admin)
+                        io.emit('stats_update', { ...stats, activeUsers: io.engine.clientsCount });
+
                         // Schedule Trade Resolution
                         setTimeout(async () => {
                                 try {
@@ -896,6 +907,8 @@ io.on('connection', (socket) => {
                                         newTrade.closePrice = closePrice;
                                         newTrade.payout = payout;
                                         await newTrade.save();
+
+
 
                                         // Update User Balance on Win
                                         if (result === 'win') {
@@ -925,12 +938,16 @@ io.on('connection', (socket) => {
                                         // Update Asset Stats
                                         const stats = getAssetStats(symbol);
                                         stats.totalTrades++;
+
+                                        // UPDATE ACTIVE COUNTS (Decrement)
                                         if (direction === 'up') {
                                                 stats.buyCount++;
                                                 stats.buyVolume += amount;
+                                                stats.activeBuyCount = Math.max(0, stats.activeBuyCount - 1);
                                         } else {
                                                 stats.sellCount++;
                                                 stats.sellVolume += amount;
+                                                stats.activeSellCount = Math.max(0, stats.activeSellCount - 1);
                                         }
 
                                         // Broadcast new stats to the Asset Room (Admin will receive it)
