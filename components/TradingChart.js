@@ -16,6 +16,7 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
   const renderCandlesRef = useRef([]);
   const scrollOffsetRef = useRef(0);
   const lastTimestampRef = useRef(null);
+  const layoutRef = useRef(null); // Share layout data between render and mouse handlers
 
   // Interaction refs
   const isPanningRef = useRef(false);
@@ -156,10 +157,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         };
       }
 
-      if (prev.isClientModified) {
-        // SNAP FIX: Trust local visual history over server updates for this candle
-        return prev;
-      }
+      // Removed isClientModified block to allow Server Authority. 
+      // Local aggregation will still happen in the [currentPrice] effect for smoothness.
 
       return {
         ...prev,
@@ -173,7 +172,32 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     });
 
     renderCandlesRef.current = updated;
+    renderCandlesRef.current = updated;
   }, [candles]);
+
+  // LIVE AGGREGATION: Update active candle visuals immediately on price change
+  useEffect(() => {
+    if (!currentPrice || renderCandlesRef.current.length === 0) return;
+
+    const lastCandle = renderCandlesRef.current[renderCandlesRef.current.length - 1];
+
+    // Only update if this candle is "current" (timestamp match roughly or assumes last IS current)
+    // We assume the last candle in the array IS the active one.
+
+    // Update Targets for smooth interpolation
+    lastCandle.targetClose = currentPrice;
+    if (currentPrice > lastCandle.targetHigh) lastCandle.targetHigh = currentPrice;
+    if (currentPrice < lastCandle.targetLow) lastCandle.targetLow = currentPrice;
+
+    // Immediate update for High/Low (snap) to prevent "wick lag"
+    // We let Close interpolate, but High/Low must bound the price immediately
+    if (currentPrice > lastCandle.high) lastCandle.high = currentPrice;
+    if (currentPrice < lastCandle.low) lastCandle.low = currentPrice;
+
+    // Mark as modified so persistence logic can pick it up if needed (though we prefer server source)
+    lastCandle.isClientModified = true;
+
+  }, [currentPrice]);
 
   // Draw chart with 60 FPS loop and interpolation
   useEffect(() => {
@@ -190,16 +214,14 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // *ENHANCEMENT: Maximized screen usage (Right-side prices)*
-    // Padding adjusted: Top: 50, Right: 75, Bottom: 40
-    const padding = { top: 50, right: 75, bottom: 40, left: 0 };
+    // Padding adjusted: Top: 50, Right: 100, Bottom: 40 to fit 6 decimals
+    const padding = { top: 50, right: 100, bottom: 40, left: 0 };
 
     // Dynamic Price Formatter
     const formatPrice = (p) => {
       if (p == null || isNaN(p)) return "0.00";
-      const abs = Math.abs(p);
-      if (abs < 2.0) return p.toFixed(5); // e.g. 0.00012
-      if (abs < 50.0) return p.toFixed(4); // e.g. 23.1234
-      return p.toFixed(2); // e.g. 100.00
+      // User request: Always show 6 decimals to match Binomo precision
+      return p.toFixed(6);
     };
 
     const updateAndDraw = (timestamp) => {
@@ -307,12 +329,22 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         return baseX + scrollOffsetRef.current;
       };
 
-      // Price range calculation
+      // Store layout for cursor interaction
+      layoutRef.current = {
+        padding,
+        pastWidth,
+        candleFullWidth,
+        candleWidth,
+        indexToX
+      };
+
       const visibleCandles = [];
       const viewMinX = padding.left - candleWidth;
       const viewMaxX = width - padding.right + candleWidth;
 
       for (let i = 0; i < renderCandles.length; i++) {
+        // ... rest of loop
+
         const x = indexToX(i);
         if (x + candleFullWidth > viewMinX && x < viewMaxX) {
           visibleCandles.push(renderCandles[i]);
@@ -503,8 +535,14 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         const highY = priceToY(high);
         const lowY = priceToY(low);
 
-        const isBullish = close >= open;
-        const color = isBullish ? "#18D67D" : "#E65252";
+        const EPSILON = 0.0000001; // Precision tolerance for 6-decimal comparison
+        const openVal = Number(open);
+        const closeVal = Number(close);
+        const isFlat = Math.abs(closeVal - openVal) < EPSILON;
+        const isBullish = closeVal > openVal; // Strict inequality
+
+        // Color Logic: Bullish (Green), Bearish (Red), Flat (Gray)
+        const color = isFlat ? "#A6ABB5" : (isBullish ? "#18D67D" : "#E65252");
 
         // Body Height Logic
         let bodyTop = Math.min(openY, closeY);
@@ -523,10 +561,12 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         let wBottom = lowY;
 
         // 1. Top Wick (High > max(open, close))
-        if (high > Math.max(open, close)) {
-          // Ensure wTop is visually above bodyTop (smaller Y)
-          if (wTop >= bodyTop) {
-            wTop = bodyTop - 3.0; // Force 3px wick
+        // Use a small epsilon for float comparison to avoid flickering on 'equal' values
+        if (high > Math.max(open, close) + 0.000001) {
+          // Ensure wTop is visually distinguishable
+          // If the natural wick is shorter than 3px, extend it to 3px
+          if (bodyTop - wTop < 3.0) {
+            wTop = bodyTop - 3.0;
           }
         } else {
           wTop = bodyTop;
@@ -534,13 +574,24 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
         // 2. Bottom Wick (Low < min(open, close))
         const bodyBottom = bodyTop + bodyH;
-        if (low < Math.min(open, close)) {
-          // Ensure wBottom is visually below bodyBottom (larger Y)
-          if (wBottom <= bodyBottom) {
-            wBottom = bodyBottom + 3.0; // Force 3px wick
+
+        // Use epsilon
+        if (low < Math.min(open, close) - 0.000001) {
+          // Ensure wBottom is visually distinguishable
+          if (wBottom - bodyBottom < 3.0) {
+            wBottom = bodyBottom + 3.0;
           }
         } else {
           wBottom = bodyBottom;
+        }
+
+        // DEBUG: Log render details for the hovered candle
+        if (hoverStateRef.current && hoverStateRef.current.index === index) {
+          console.log(`Render Hover [${index}]:`, {
+            O: open, H: high, L: low, C: close,
+            wTop: wTop.toFixed(1), bodyTop: bodyTop.toFixed(1),
+            diff: (bodyTop - wTop).toFixed(1)
+          });
         }
 
         ctx.strokeStyle = color;
@@ -594,7 +645,9 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
         // Move to Top-Left area (above grid)
         const startY = 30; // 30px from top (padding.top is usually 50)
-        const gapX = 100;
+
+        // Increase gap to accommodate 6 decimals (e.g. 90736.880517 is wide)
+        const gapX = 160;
 
         ctx.fillStyle = "#A6ABB5"; // Label color
         ctx.fillText("Open:", padding.left + 10, startY);
@@ -851,20 +904,12 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
   }, [currentPrice, dimensions, timeframe, direction]);
 
   const handlePointerMove = (event) => {
-    if (!containerRef.current || !canvasRef.current) return;
+    if (!containerRef.current || !canvasRef.current || !layoutRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    // *UPDATE: Sync with updateAndDraw padding*
-    const padding = { top: 50, right: 100, bottom: 40, left: 0 };
-
-    const width = rect.width;
-    const chartWidth = width - padding.left - padding.right;
-
-    const futureRatio = 0.12; // Sync with updateAndDraw
-    const futureWidth = chartWidth * futureRatio;
-    const pastWidth = chartWidth - futureWidth;
+    const { padding, pastWidth, candleFullWidth, candleWidth, indexToX } = layoutRef.current;
 
     const renderCandles = renderCandlesRef.current;
     if (!renderCandles.length) {
@@ -872,24 +917,13 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       return;
     }
 
-    // Match the zoom logic from updateAndDraw
-    const zoom = zoomRef.current || 1.0;
-    const targetCandleCount = 70 * zoom; // Sync with updateAndDraw
-    const candleFullWidth = pastWidth / targetCandleCount;
-    const candleWidth = candleFullWidth * 0.70;
-
-    // indexToX must match EXACTLY
-    const indexToX = (index) => {
-      const baseX = padding.left + pastWidth - (renderCandles.length - 1 - index) * candleFullWidth;
-      return baseX + scrollOffsetRef.current;
-    };
-
-    let nearestIndex = null;
-    let nearestDist = Infinity;
-
+    // Inverse calculation using exact shared layout
     const calculatedIndex = Math.round(
       renderCandles.length - 1 + (x - padding.left - pastWidth - scrollOffsetRef.current) / candleFullWidth
     );
+
+    let nearestIndex = null;
+    let nearestDist = Infinity;
 
     if (calculatedIndex >= 0 && calculatedIndex < renderCandles.length) {
       nearestIndex = calculatedIndex;
@@ -897,7 +931,8 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       nearestDist = Math.abs(cx - x);
     }
 
-    if (nearestIndex == null || nearestDist > candleWidth) {
+    // Relaxed distance check (within full slot width) to capture gaps
+    if (nearestIndex == null || nearestDist > candleFullWidth) {
       hoverStateRef.current = { x: null, y: null, price: null, index: null, time: null };
       return;
     }

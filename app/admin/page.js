@@ -50,7 +50,7 @@ export default function AdminPage() {
         newSocket.on('connect', () => {
             console.log('✅ Admin Connected');
             setIsConnected(true);
-            newSocket.emit('request_stats'); // Initial fetch
+            newSocket.emit('request_stats', selectedAsset); // Fetch stats for THIS asset
             newSocket.emit('subscribe', selectedAsset); // Subscribe to selected asset to get its state
         });
 
@@ -78,6 +78,13 @@ export default function AdminPage() {
 
         return () => newSocket.close();
     }, [selectedAsset]); // Re-connect or re-subscribe when asset changes
+
+    // Refetch stats when asset changes (if socket exists)
+    useEffect(() => {
+        if (socket && isConnected) {
+            socket.emit('request_stats', selectedAsset);
+        }
+    }, [selectedAsset, socket, isConnected]);
 
     const handleControlUpdate = (field, value) => {
         if (!socket) return;

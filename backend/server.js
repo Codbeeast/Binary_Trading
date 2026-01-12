@@ -27,14 +27,22 @@ const Trade = require('./models/Trade');
 const User = require('./models/User');
 
 // Trade statistics (in-memory cache for speed)
-let tradeStats = {
-        activeUsers: 0,
-        totalTrades: 0,
-        buyCount: 0,
-        sellCount: 0,
-        buyVolume: 0,
-        sellVolume: 0,
-};
+// Trade statistics (per asset)
+const assetStats = new Map();
+
+function getAssetStats(symbol) {
+        if (!assetStats.has(symbol)) {
+                assetStats.set(symbol, {
+                        activeUsers: 0,
+                        totalTrades: 0,
+                        buyCount: 0,
+                        sellCount: 0,
+                        buyVolume: 0,
+                        sellVolume: 0,
+                });
+        }
+        return assetStats.get(symbol);
+}
 
 const express = require('express');
 const cors = require('cors');
@@ -152,7 +160,7 @@ function generateNextPrice(currentPrice, direction, volatility) {
         newPrice = Math.max(newPrice, 0.00001); // Fix: Allow low values for Forex
         // newPrice = Math.min(newPrice, 1000000); // Removed upper limit or set very high
 
-        return parseFloat(newPrice.toFixed(5)); // Increased precision for Forex
+        return parseFloat(newPrice.toFixed(6)); // High precision for binary trading (6 decimals)
 }
 
 // Update candle with new tick
@@ -239,6 +247,15 @@ function getAssetState(symbol) {
                                 targetOffset: 0,
                                 lastUpdateTime: 0, // Track time for smooth accumulation
                                 noisePhase: Math.random() * 10,
+                        },
+                        // Per-asset stats
+                        stats: {
+                                activeUsers: 0,
+                                totalTrades: 0,
+                                buyCount: 0,
+                                sellCount: 0,
+                                buyVolume: 0,
+                                sellVolume: 0,
                         }
                 });
         }
@@ -486,7 +503,13 @@ function startBinanceRealTimeData() {
 
         // Subscribe to each symbol
         cryptoSymbols.forEach(symbol => {
-                binanceService.subscribe(symbol, (realPrice) => {
+                binanceService.subscribe(symbol, (rawPrice) => {
+                        const basePrice = parseFloat(rawPrice);
+                        // Inject micro-noise to simulate 6-decimal precision for Binary Options matching (Binomo style)
+                        // Adds 0.000000 to 0.009999 to the base price
+                        const microNoise = Math.floor(Math.random() * 10000) / 1000000;
+                        const realPrice = parseFloat((basePrice + microNoise).toFixed(6));
+
                         const state = getAssetState(symbol);
                         const { marketState, manipulationState } = state;
 
@@ -633,8 +656,13 @@ function getAssetCandleTracker(symbol, timeframe) {
 function processAssetCandle(symbol, timeframe, price, timestamp) {
         const tracker = getAssetCandleTracker(symbol, timeframe);
 
-        if (!tracker.startTime || timestamp - tracker.startTime >= tracker.duration) {
-                // Complete candle
+        // GRID ALIGNMENT: Snap timestamp to the exact timeframe bucket (e.g. 10:00:00, 10:00:05)
+        const duration = tracker.duration;
+        const alignedTimestamp = Math.floor(timestamp / duration) * duration;
+
+        // Detect New Candle: If tracker is empty OR new bucket is later than current tracker start
+        if (!tracker.startTime || alignedTimestamp > tracker.startTime) {
+                // Complete previous candle
                 const completedCandle = tracker.startTime && tracker.open !== null ? {
                         open: tracker.open,
                         high: tracker.high,
@@ -645,11 +673,12 @@ function processAssetCandle(symbol, timeframe, price, timestamp) {
                         symbol: symbol
                 } : null;
 
+                // Reset tracker for NEW candle
                 tracker.open = price;
                 tracker.high = price;
                 tracker.low = price;
                 tracker.close = price;
-                tracker.startTime = timestamp;
+                tracker.startTime = alignedTimestamp; // Use ALIGNED time
 
                 if (completedCandle) {
                         saveCandle(completedCandle); // Save with symbol
@@ -764,7 +793,8 @@ io.on('connection', (socket) => {
                 try {
                         const timeframes = ['5s', '15s', '30s', '1m']; // Send ALL timeframes
                         for (const timeframe of timeframes) {
-                                const recentCandles = await Candle.find({ timeframe, symbol: asset }) // Needs schema update
+                                // 1. Send Completed History from DB
+                                const recentCandles = await Candle.find({ timeframe, symbol: asset })
                                         .sort({ timestamp: -1 })
                                         .limit(150)
                                         .lean();
@@ -774,6 +804,20 @@ io.on('connection', (socket) => {
                                         candles: recentCandles.reverse(),
                                         symbol: asset
                                 });
+
+                                // 2. Send Current In-Progress Candle from Memory (Critical for Wicks)
+                                const tracker = getAssetCandleTracker(asset, timeframe);
+                                if (tracker.startTime) {
+                                        socket.emit('candle_update', {
+                                                open: tracker.open,
+                                                high: tracker.high,
+                                                low: tracker.low,
+                                                close: tracker.close,
+                                                timeframe,
+                                                timestamp: new Date(tracker.startTime),
+                                                symbol: asset
+                                        });
+                                }
                         }
                 } catch (error) {
                         console.error('Error fetching history:', error);
@@ -877,6 +921,23 @@ io.on('connection', (socket) => {
                                                         symbol
                                                 });
                                         }
+
+                                        // Update Asset Stats
+                                        const stats = getAssetStats(symbol);
+                                        stats.totalTrades++;
+                                        if (direction === 'up') {
+                                                stats.buyCount++;
+                                                stats.buyVolume += amount;
+                                        } else {
+                                                stats.sellCount++;
+                                                stats.sellVolume += amount;
+                                        }
+
+                                        // Broadcast new stats to the Asset Room (Admin will receive it)
+                                        io.to(symbol).emit('stats_update', {
+                                                ...stats,
+                                                activeUsers: io.engine.clientsCount
+                                        });
 
 
                                 } catch (err) {
@@ -1070,43 +1131,22 @@ io.on('connection', (socket) => {
                 console.log('👤 Client disconnected:', socket.id);
         });
 
-        // Handle client-side candle persistence (User-requested "Visual Truth")
-        socket.on('persist_candle', async (data) => {
-                try {
-                        // Overwrite server data with client visual data
-                        const filter = {
-                                symbol: data.symbol,
-                                timeframe: data.timeframe,
-                                timestamp: new Date(data.timestamp)
-                        };
 
-                        const update = {
-                                open: data.open,
-                                high: data.high,
-                                low: data.low,
-                                close: data.close,
-                                volume: data.volume || 0,
-                                symbol: data.symbol,
-                                timeframe: data.timeframe,
-                                timestamp: new Date(data.timestamp)
-                        };
-
-                        const result = await Candle.updateOne(filter, { $set: update }, { upsert: true });
-
-                        // Optional: Broadcast this "finalized" version to others if needed? 
-                        // For now, silent update is enough as it prevents "change on refresh".
-                } catch (error) {
-                        console.error('❌ Error persisting client candle:', error);
-                }
-        });
 
 
 
         // Handle admin stats request
-        socket.on('request_stats', () => {
+        // Handle admin stats request
+        socket.on('request_stats', (symbol) => {
+                const targetSymbol = symbol || 'BTCUSDT';
+                const stats = getAssetStats(targetSymbol);
+
+                // Emit only to the requester or the room? 
+                // Admin dashboard subscribes to room, so room emit might be duplicated if we also emit to socket.
+                // But specifically for initial load 'request_stats', we should just emit back to socket.
                 socket.emit('stats_update', {
-                        ...tradeStats,
-                        activeUsers: io.engine.clientsCount
+                        ...stats,
+                        activeUsers: io.engine.clientsCount // Global active users, or per room? Using global for now.
                 });
         });
 });
