@@ -38,6 +38,14 @@ export default function AdminPage() {
         symbol: 'BTCUSDT'
     });
 
+    // -- PERSISTENCE LOGIC START --
+    const selectedAssetRef = useRef(selectedAsset);
+    // Sync ref
+    useEffect(() => { selectedAssetRef.current = selectedAsset; }, [selectedAsset]);
+
+    // Active Trades List
+    const [adminActiveTrades, setAdminActiveTrades] = useState([]);
+
     // Ref to track last user action time to prevent server overriding local optimistic updates
     const lastActionTime = useRef(0);
 
@@ -120,6 +128,37 @@ export default function AdminPage() {
             }
         });
 
+        newSocket.on('disconnect', () => setIsConnected(false));
+
+        // Admin: Active Trades Sync
+        newSocket.emit('join_admin');
+
+        newSocket.on('active_trades_list', (trades) => {
+            setAdminActiveTrades(trades);
+        });
+
+        newSocket.on('admin_new_trade', (trade) => {
+            // Only add if it belongs to currently viewed asset
+            if (trade.symbol === selectedAssetRef.current) {
+                setAdminActiveTrades(prev => [trade, ...prev]);
+            }
+        });
+
+        newSocket.on('admin_trade_result', (result) => {
+            console.log('🗑️ Trade Completed:', result.id, 'Removing from list...');
+            // Remove trade from list when completed
+            setAdminActiveTrades(prev => {
+                const filtered = prev.filter(t => {
+                    const tId = t._id || t.id;
+                    const rId = result.id;
+                    // Loose equality to catch string vs objectid
+                    return tId != rId && t.clientTradeId != rId;
+                });
+                console.log(`Remaining active trades: ${filtered.length} (was ${prev.length})`);
+                return filtered;
+            });
+        });
+
         newSocket.on('disconnect', () => {
             console.log('❌ Admin Disconnected');
             setIsConnected(false);
@@ -136,8 +175,11 @@ export default function AdminPage() {
         });
 
         newSocket.on('stats_update', (newStats) => {
-            console.log('Stats received:', newStats);
-            setStats(newStats);
+            // Only update if stats belong to the currently selected asset
+            if (newStats.symbol === selectedAssetRef.current) {
+                // console.log('Stats received for', newStats.symbol);
+                setStats(newStats);
+            }
         });
 
         newSocket.on('candle_closed', (data) => {
@@ -148,6 +190,13 @@ export default function AdminPage() {
 
         return () => newSocket.close();
     }, [selectedAsset]); // Re-connect or re-subscribe when asset changes
+
+    // Re-fetch trades when asset changes
+    useEffect(() => {
+        if (socket && isConnected) {
+            socket.emit('request_active_trades', selectedAsset);
+        }
+    }, [selectedAsset, socket, isConnected]);
 
     // Refetch stats when asset changes (if socket exists)
     useEffect(() => {
@@ -264,6 +313,37 @@ export default function AdminPage() {
 
 
                 </div>
+
+                {/* Active Trades List */}
+                <section className="bg-[#16181D] border border-[#272A32] rounded-xl p-6 mt-6">
+                    <h2 className="text-lg font-semibold mb-4 text-white flex items-center justify-between">
+                        <span>Active Trades ({selectedAsset})</span>
+                        <span className="text-xs text-gray-400 bg-[#2C303A] px-2 py-1 rounded-md">{adminActiveTrades.length} Active</span>
+                    </h2>
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                        {adminActiveTrades.length === 0 ? (
+                            <div className="text-center text-gray-500 py-4 text-sm">No active trades</div>
+                        ) : (
+                            adminActiveTrades.map(trade => (
+                                <div key={trade._id || trade.id} className="flex items-center justify-between p-3 bg-[#1F2128] rounded-lg border border-[#2C303A]">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs text-gray-400 font-mono">ID: {(trade.userId || '...').slice(-4)}</span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className={`text-xs font-bold uppercase ${trade.direction === 'up' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                {trade.direction === 'up' ? 'CALL ↗' : 'PUT ↘'}
+                                            </span>
+                                            <span className="text-sm font-semibold text-white">₹{trade.amount}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[10px] text-gray-500">Entry: {trade.entryPrice}</span>
+                                        <span className="text-xs text-blue-400">{trade.duration}s</span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </section>
 
                 {/* Right Col: Market Configuration */}
                 <div className="space-y-6">

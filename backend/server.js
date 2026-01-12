@@ -886,6 +886,9 @@ io.on('connection', (socket) => {
                                 io.to(userId).emit('new_trade', { ...newTrade.toObject(), clientTradeId });
                         }
 
+                        // Notify Admin
+                        io.to('admin').emit('admin_new_trade', newTrade.toObject());
+
                         // UPDATE STATS (Real-time Active Count)
                         const stats = getAssetStats(symbol || 'BTCUSDT');
                         if (direction === 'up') stats.activeBuyCount++;
@@ -893,7 +896,11 @@ io.on('connection', (socket) => {
 
                         // stats.totalTrades++; // Moved to completion to prevent "double update" perception
                         // Emit stats update to anyone listening (Admin)
-                        io.emit('stats_update', { ...stats, activeUsers: io.engine.clientsCount });
+                        io.emit('stats_update', {
+                                ...stats,
+                                symbol: symbol || 'BTCUSDT', // Critical for filtering
+                                activeUsers: io.engine.clientsCount
+                        });
 
                         // Schedule Trade Resolution
                         setTimeout(async () => {
@@ -944,6 +951,15 @@ io.on('connection', (socket) => {
                                                 });
                                         }
 
+                                        // Notify Admin
+                                        io.to('admin').emit('admin_trade_result', {
+                                                id: newTrade._id,
+                                                result,
+                                                payout,
+                                                closePrice,
+                                                symbol
+                                        });
+
                                         // Update Asset Stats
                                         const stats = getAssetStats(symbol);
                                         stats.totalTrades++;
@@ -962,6 +978,7 @@ io.on('connection', (socket) => {
                                         // Broadcast new stats to the Asset Room (Admin will receive it)
                                         io.to(symbol).emit('stats_update', {
                                                 ...stats,
+                                                symbol: symbol, // Critical for filtering
                                                 activeUsers: io.engine.clientsCount
                                         });
 
@@ -1169,8 +1186,28 @@ io.on('connection', (socket) => {
                 // But specifically for initial load 'request_stats', we should just emit back to socket.
                 socket.emit('stats_update', {
                         ...stats,
+                        symbol: targetSymbol, // Critical: Client filters by this now!
                         activeUsers: io.engine.clientsCount // Global active users, or per room? Using global for now.
                 });
+        });
+
+        // Admin: Join Room
+        socket.on('join_admin', () => {
+                socket.join('admin');
+        });
+
+        // Admin: Request Active Trades
+        socket.on('request_active_trades', async (symbol) => {
+                try {
+                        const trades = await Trade.find({
+                                result: 'pending',
+                                symbol: symbol
+                        }).sort({ timestamp: -1 }).limit(50);
+
+                        socket.emit('active_trades_list', trades);
+                } catch (err) {
+                        console.error('Error fetching active trades:', err);
+                }
         });
 });
 
