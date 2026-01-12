@@ -10,7 +10,7 @@ class BinanceService {
     this.maxReconnectAttempts = 10;
     this.reconnectDelay = 5000;
     this.isConnected = false;
-    // this.connectionUrl = 'wss://stream.binance.com:9443/ws';
+    this.connectionUrl = 'wss://stream.binance.com:9443/ws';
     this.usConnectionUrl = 'wss://stream.binance.us:9443/ws';
     this.usingUS = false;
     this.onError = onError;
