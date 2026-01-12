@@ -539,34 +539,43 @@ function startBinanceRealTimeData() {
                                 const currentManipulated = realPrice + manipulationState.currentOffset;
 
                                 if (mode === 'up') {
-                                        // Smart Ratchet UP:
-                                        // If we are safely above activation (e.g. > 0.05% gain), rely mostly on real market.
-                                        // If we are close to floor or below, PUSH UP HARDER.
-                                        const safeZone = activationPrice * 1.0005;
+                                        // Smart Ratchet UP with Natural Oscillation:
+                                        const safeZone = activationPrice ? activationPrice * 1.0003 : 0; // 0.03% buffer
+                                        const isSafe = !activationPrice || currentManipulated > safeZone;
 
-                                        if (activationPrice && currentManipulated < safeZone) {
-                                                // We are near danger zone -> Add drift
-                                                manipulationState.currentOffset += driftDelta;
+                                        if (isSafe) {
+                                                // Natural movement: mostly up, but sometimes down (retracement)
+                                                // 60% Up, 40% Down (creates red candles)
+                                                if (Math.random() < 0.6) {
+                                                        manipulationState.currentOffset += driftDelta; // Trend Up
+                                                } else {
+                                                        manipulationState.currentOffset -= driftDelta * 0.5; // Shallow Retrace
+                                                }
                                         } else {
-                                                // We are safe high -> Add tiny drift rarely (slow creep) or just hold
-                                                if (Math.random() < 0.2) manipulationState.currentOffset += driftDelta;
+                                                // Danger Zone: FORCE UP to clear activation price
+                                                manipulationState.currentOffset += driftDelta * 1.5;
                                         }
 
                                 } else if (mode === 'down') {
-                                        // Smart Ratchet DOWN:
-                                        const safeZone = activationPrice * 0.9995;
+                                        // Smart Ratchet DOWN with Natural Oscillation:
+                                        const safeZone = activationPrice ? activationPrice * 0.9997 : Infinity;
+                                        const isSafe = !activationPrice || currentManipulated < safeZone;
 
-                                        if (activationPrice && currentManipulated > safeZone) {
-                                                // Near danger zone ( too high ) -> Push Down
-                                                manipulationState.currentOffset -= driftDelta;
+                                        if (isSafe) {
+                                                // Natural movement: mostly down, but sometimes up (retracement)
+                                                if (Math.random() < 0.6) {
+                                                        manipulationState.currentOffset -= driftDelta; // Trend Down
+                                                } else {
+                                                        manipulationState.currentOffset += driftDelta * 0.5; // Shallow Retrace
+                                                }
                                         } else {
-                                                // Safe low -> Slow creep
-                                                if (Math.random() < 0.2) manipulationState.currentOffset -= driftDelta;
+                                                // Danger Zone: FORCE DOWN
+                                                manipulationState.currentOffset -= driftDelta * 1.5;
                                         }
                                 }
                         } else if (mode === 'neutral') {
-                                // Decay to 0 (Always run every tick for smoothness)
-                                const LERP_FACTOR = 0.05;
+                                // Decay to 0 (Slower for seamless transition)
+                                const LERP_FACTOR = 0.01; // Slower fade (was 0.05)
                                 manipulationState.currentOffset += (0 - manipulationState.currentOffset) * LERP_FACTOR;
                         }
 
