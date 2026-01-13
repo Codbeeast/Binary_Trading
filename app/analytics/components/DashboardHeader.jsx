@@ -13,7 +13,7 @@ export default function DashboardHeader({ period, setPeriod, refresh }) {
     return (
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                <h1 className="text-2xl ml-12 sm:ml-0 font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
                     Trading Analytics
                 </h1>
                 <p className="text-sm text-gray-400 mt-1">

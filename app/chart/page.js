@@ -5,6 +5,7 @@ import { io } from "socket.io-client";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import TradingChart from "@/components/TradingChart";
 import TimeframeSelector from "@/components/TimeframeSelector";
 import TimeSelector from "@/components/TimeSelector";
@@ -497,10 +498,16 @@ export default function Home() {
               <Menu className="h-5 w-5" />
             </button>
 
-            {/* Mobile: 'F' Logo */}
+            {/* Mobile: Logo */}
             <div className="lg:hidden flex items-center gap-2 landscape:ml-12">
-              <Link href="/" className="w-8 h-8 bg-orange-400 rounded-lg flex items-center justify-center text-black font-extrabold text-xl mt-1 ml-1 hover:brightness-110 active:scale-95 transition-all cursor-pointer">
-                F
+              <Link href="/" className="flex items-center justify-center mt-1 ml-1 hover:brightness-110 active:scale-95 transition-all cursor-pointer">
+                <Image
+                  src="/iconbarlogo.png"
+                  alt="Finexa"
+                  width={100}
+                  height={32}
+                  className="h-8 w-auto object-contain"
+                />
               </Link>
             </div>
 

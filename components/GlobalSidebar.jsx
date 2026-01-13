@@ -1,6 +1,6 @@
-"use client";
 import React, { useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
     BarChart3,
@@ -78,15 +78,18 @@ export default function GlobalSidebar({
                     {/* Background glow for logo area */}
                     <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent pointer-events-none" />
 
-                    <Link href="/" className="relative z-10 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 font-bold text-white shadow-lg shadow-orange-500/30 shrink-0 hover:scale-105 transition-transform">
-                        <span className="text-xl">F</span>
+                    <Link href="/" className="flex items-center justify-center w-full">
+                        <Image
+                            src="/iconbarlogo.png"
+                            alt="Finexa"
+                            width={isCollapsed ? 50 : 160}
+                            height={50}
+                            className={cn(
+                                "object-contain transition-all duration-300",
+                                isCollapsed ? "h-10 w-auto" : "h-14 w-auto"
+                            )}
+                        />
                     </Link>
-                    <span className={cn(
-                        "font-bold tracking-tight text-2xl bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent whitespace-nowrap relative z-10",
-                        isCollapsed ? "hidden" : "block"
-                    )}>
-                        Finexa
-                    </span>
                 </div>
 
                 {/* Mobile Header (Close Button) */}

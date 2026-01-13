@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Menu, X } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useSession } from "next-auth/react";
 import UserMenu from "@/components/UserMenu";
 
@@ -41,17 +42,15 @@ export default function Navigation() {
       <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative">
-              <div className="absolute inset-0 bg-brand-orange/20 blur-xl rounded-full group-hover:bg-brand-orange/30 transition-all" />
-              <div className="relative p-2 bg-gradient-to-br from-brand-orange/20 to-brand-gold/20 rounded-xl border border-brand-orange/30">
-                <TrendingUp className="w-6 h-6 text-brand-orange" />
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-xl font-bold text-white">Finexa</span>
-              <span className="text-xs text-gray-400">Global Trading Platform</span>
-            </div>
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/logo.png"
+              alt="Finexa"
+              width={180}
+              height={60}
+              className="h-14 w-auto object-contain"
+              priority
+            />
           </Link>
 
           {/* Desktop Navigation */}
