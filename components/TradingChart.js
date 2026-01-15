@@ -991,15 +991,51 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     handlePointerMovePan(event);
   };
 
+  // --- TOUCH HANDLING (Mobile) ---
+  const handleTouchStart = (event) => {
+    // Prevent default to avoid some browser gestures, though specific prevention is in move
+    const touch = event.touches[0];
+    isPanningRef.current = true;
+    lastPanXRef.current = touch.clientX;
+    // Also update hover crosshair if needed, or clear it
+    handlePointerLeave();
+  };
+
+  const handleTouchMove = (event) => {
+    // Critical: Prevent page scroll while panning chart
+    // event.preventDefault(); // React synthetic events might need passive: false in config, but usually works here if not passive.
+    // simpler: handled by touch-action: none CSS usually, but let's try direct logic.
+
+    if (!isPanningRef.current) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - lastPanXRef.current;
+    lastPanXRef.current = touch.clientX;
+    scrollOffsetRef.current += dx;
+
+    // Optional: Update crosshair for touch? 
+    // Usually touch-drag implies panning, so we skip crosshair updates to avoid confusion or lag.
+  };
+
+  const handleTouchEnd = () => {
+    isPanningRef.current = false;
+    handlePointerLeave();
+  };
+
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full rounded-lg overflow-hidden"
+      className="relative w-full h-full rounded-lg overflow-hidden touch-none" // Added touch-none for CSS-level scroll prevention
       onMouseMove={handleMouseMove}
       onMouseLeave={handlePointerLeave}
       onWheel={handleWheel}
       onMouseDown={handlePointerDown}
       onMouseUp={handlePointerUp}
+      // Touch Events
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       <canvas ref={canvasRef} className="w-full h-full" />
 
