@@ -868,46 +868,7 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       ctx.stroke();
       ctx.restore();
 
-      // COUNTDOWN TIMER ON PRICE LINE
-      const activeCandle = renderCandles[renderCandles.length - 1];
-      if (activeCandle) {
-        // Calculate remaining duration
-        let duration = 0;
-        // Updated map to support all timeframes (5s, 15s, 30s, 1m)
-        const map = { '5s': 5000, '15s': 15000, '30s': 30000, '1m': 60000 };
-        if (timeframe in map) duration = map[timeframe];
 
-        const timestamp = activeCandle.timestamp;
-        if (timestamp && !isNaN(timestamp.getTime())) {
-          // WALL CLOCK SYNC (Requested)
-          // Align precise countdown to global time grid (e.g. every 5s)
-          // This eliminates drift and gaps caused by backend latency or candle timestamp jitter.
-          const now = Date.now();
-          const remain = duration - (now % duration);
-
-          // Use Ceil to show "5" for 4.9s etc.
-          // If remain is super small (e.g. 0.001), show 0 momentarily or wrap?
-          // User asked for "reaches 0", then "instantly resets to 5".
-          let seconds = Math.ceil(remain / 1000);
-
-          // Special case: If exactly at 0 boundary (unlikely with ceil unless exactly 0)
-          // or if 5000 -> 5.
-
-          // Format 00:00
-          const text = `00:${seconds.toString().padStart(2, '0')}`;
-
-          // Draw Text
-          ctx.save();
-          ctx.fillStyle = "#E3E5E8"; // Light/White text
-          ctx.font = "bold 13px system-ui";
-          ctx.textAlign = "right";
-          ctx.shadowColor = "#000000";
-          ctx.shadowBlur = 4;
-          // Position: slightly left of the solid line end, just above the line
-          ctx.fillText(text, width - padding.right - 15, priceY - 6);
-          ctx.restore();
-        }
-      }
 
       // 7. Price label (Right side)
       const labelWidth = 70; // Reduced from 96 to fit
@@ -1015,8 +976,9 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
         // Timer Box Logic
         const timerWidth = 46;
         const timerHeight = 20;
-        const timerX = width - padding.right + 8; // Right margin area
-        const timerY = y + 16; // Slightly below the line
+        // Position: "little left where previous one was" (Left of axis) and "above the line"
+        const timerX = width - padding.right - timerWidth - 10;
+        const timerY = y - timerHeight - 6; // Above the line
 
         ctx.save();
         ctx.fillStyle = "#1C1F27"; // Dark background
