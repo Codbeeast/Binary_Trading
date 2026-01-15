@@ -38,10 +38,17 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
 
   // ATOMIC REF: For accessing fresh tick data inside the closure of the render loop
   const latestTickRef = useRef(latestTick);
+  const clockOffsetRef = useRef(0); // OFFSET: ServerTime - LocalTime
 
-  // Sync Ref with Prop
+  // Sync Ref with Prop & Calculate Offset
   useEffect(() => {
     latestTickRef.current = latestTick;
+
+    // TIME SYNC: strictly synchronize local clock to server
+    // If latestTick is fresh (roughly now), we calculate offset.
+    if (latestTick?.timestamp) {
+      clockOffsetRef.current = latestTick.timestamp - Date.now();
+    }
   }, [latestTick]);
 
   // Persistent Visual State for Active Candle (to persist wicks from jitter)
@@ -350,8 +357,9 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
 
       // LATENCY FIX: Use Max(Local, Server) for current time.
       // On Mobile, Local Clock might be slow. We trust Server Time (via Ref to avoid stale closure) if it's ahead.
-      const serverTime = latestTickRef.current?.timestamp || 0;
-      const effectiveNow = Math.max(Date.now(), serverTime);
+      // UPDATE: We now use `clockOffsetRef` to strictly sync to Server Time (handling both Ahead and Behind clocks).
+      const correctedNow = Date.now() + clockOffsetRef.current;
+      const effectiveNow = correctedNow;
 
       const expectedTime = effectiveNow - (effectiveNow % duration); // e.g. xx:xx:00, xx:xx:05
 
@@ -985,6 +993,46 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
 
           ctx.restore();
         });
+      }
+
+      // --- TIMER (Countdown) ---
+      // Uses correctedNow (Server Time) to ensure sync with Backend.
+      const nowTs = correctedNow;
+      // duration is already defined above in Phantom logic
+      const currentCandleStart = nowTs - (nowTs % duration);
+      const nextCandleStart = currentCandleStart + duration;
+      const timeLeft = Math.max(0, nextCandleStart - nowTs);
+
+      // Only draw timer if active and chart valid
+      if (renderPriceRef.current !== null && !isNaN(renderPriceRef.current)) {
+        const y = priceToY(renderPriceRef.current);
+
+        // Format MM:SS
+        const minutes = Math.floor(timeLeft / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+        const timeText = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+
+        // Timer Box Logic
+        const timerWidth = 46;
+        const timerHeight = 20;
+        const timerX = width - padding.right + 8; // Right margin area
+        const timerY = y + 16; // Slightly below the line
+
+        ctx.save();
+        ctx.fillStyle = "#1C1F27"; // Dark background
+        ctx.strokeStyle = "#2C303A";
+        ctx.lineWidth = 1;
+
+        ctx.beginPath();
+        ctx.roundRect(timerX, timerY, timerWidth, timerHeight, 4);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "#9CA3AF"; // Gray text
+        ctx.font = "11px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(timeText, timerX + timerWidth / 2, timerY + 14);
+        ctx.restore();
       }
 
       // Crosshair / hover (unchanged logic)
