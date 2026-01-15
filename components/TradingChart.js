@@ -148,9 +148,10 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
     const existingMap = new Map();
     existing.forEach(c => existingMap.set(c.timestamp.getTime(), c));
 
-    const updated = candles.map((c) => {
+    const updated = candles.map((c, index) => {
       const ts = new Date(c.timestamp).getTime();
       const prev = existingMap.get(ts);
+      const isLast = index === candles.length - 1;
 
       if (!prev) {
         return {
@@ -167,11 +168,34 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
         };
       }
 
-      // Removed isClientModified block to allow Server Authority. 
-      // Local aggregation will still happen in the [currentPrice] effect for smoothness.
+      // SYNC LOGIC:
+      // For historical candles (not the last one), Server is strictly authority. Overwrite everything.
+      // For the active candle, we must prevent "flicker" by preserving higher-fidelity local state (ticks).
 
+      if (!isLast) {
+        return {
+          ...prev,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+          timestamp: new Date(c.timestamp),
+          isNew: false
+        };
+      }
+
+      // Active Candle Merge:
+      // Open: Trust Server (Open shouldn't change, but if it does, server is right)
+      // High: Max(Server, Local) - prevents shrinking wicks
+      // Low: Min(Server, Local) - prevents shrinking wicks
+      // Close: Trust Local (prev.close) because it reflects the most recent 'currentPrice' tick, 
+      //        which is likely newer than the 'candles' prop update (socket latency).
       return {
         ...prev,
+        open: c.open,
+        high: Math.max(prev.high, c.high),
+        low: Math.min(prev.low, c.low),
+        close: prev.close, // Keep local live price
         targetOpen: c.open,
         targetHigh: c.high,
         targetLow: c.low,
@@ -317,11 +341,18 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       const renderCandles = renderCandlesRef.current;
 
       // --- PHANTOM CANDLE INJECTION (Zero-Latency) ---
-      // If the timer has reset (Wall Clock) but the Socket hasn't sent the new candle yet,
+      // If the timer has reset (Wall Clock OR Server Clock) but the Socket hasn't sent the new candle yet,
       // we inject a "Phantom" candle to ensure the graph splits INSTANTLY.
       const duration = getTimeframeDuration(timeframe);
-      const now = Date.now();
-      const expectedTime = now - (now % duration); // e.g. xx:xx:00, xx:xx:05
+
+      // LATENCY FIX: Use Max(Local, Server) for current time.
+      // On Mobile, Local Clock might be slow. We trust Server Time (lastTimestampRef) if it's ahead.
+      // We use `lastTickTimestamp` (prop) or `lastTimestampRef.current` (canvas loop time).
+      // `lastTickTimestamp` is more reliable for "Data Time".
+      const serverTime = lastTickTimestamp || 0;
+      const effectiveNow = Math.max(Date.now(), serverTime);
+
+      const expectedTime = effectiveNow - (effectiveNow % duration); // e.g. xx:xx:00, xx:xx:05
 
       if (renderCandles.length > 0) {
         const lastCandle = renderCandles[renderCandles.length - 1];
