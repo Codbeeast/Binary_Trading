@@ -621,7 +621,19 @@ export default function Home() {
             </div>
 
             {/* Mobile Floating Timeframe (Top Right, fixed position) */}
-            <div className="lg:hidden landscape:hidden absolute top-0 right-4 z-20">
+            {/* Mobile Floating Timeframe (Top Right, fixed position) */}
+            <div className="lg:hidden landscape:hidden absolute top-0 right-4 z-20 flex items-center gap-2">
+
+              {/* Chart Type Trigger (Mobile) */}
+              <div className="bg-[#1C1F27]/90 backdrop-blur rounded-lg border border-white/10 shadow-lg p-1">
+                <button
+                  onClick={() => setIsChartTypeModalOpen(true)}
+                  className="flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-white hover:bg-[#2C303A]"
+                >
+                  <CandlestickChart size={16} />
+                </button>
+              </div>
+
               {/* Position adjusted to avoid Y-axis labels. Assuming labels take ~50-60px */}
               <div className="bg-[#1C1F27]/90 backdrop-blur rounded-lg border border-white/10 shadow-lg p-1">
                 <TimeframeSelector

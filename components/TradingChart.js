@@ -223,7 +223,20 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
 
     // FRAMER MOTION: Update spring target
     // We use set() to update the spring target immediately
-    if (priceSpring) priceSpring.set(currentPrice);
+    if (priceSpring) {
+      // ASSET SWITCH FIX: If price change is massive (likely asset switch), SNAP immediately.
+      // Heuristic: If change is > 50% of current value, it's definitely an asset switch (or crash).
+      // Or if the spring value corresponds to a completely different price range.
+      const currentSpringValue = priceSpring.get();
+      const diff = Math.abs(currentPrice - currentSpringValue);
+
+      // If diff is > 10% of price, SNAP. (Forex/Crypto rarely moves 10% in 1 tick)
+      if (currentSpringValue === 0 || (currentPrice > 0 && diff / currentPrice > 0.1)) {
+        priceSpring.jump(currentPrice);
+      } else {
+        priceSpring.set(currentPrice);
+      }
+    }
 
   }, [currentPrice]);
 
