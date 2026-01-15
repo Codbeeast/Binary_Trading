@@ -112,7 +112,8 @@ export default function Home() {
   // Structure: { '5s': [...], ... }
   const [candlesMap, setCandlesMap] = useState({});
   const [ticks, setTicks] = useState([]);
-  const [lastTickTimestamp, setLastTickTimestamp] = useState(null); // New state for precise sync
+  const [lastTickTimestamp, setLastTickTimestamp] = useState(null); // Keep for legacy
+  const [latestTick, setLatestTick] = useState({ price: 0, timestamp: 0 }); // ATOMIC SYNC for Chart
   const [isConnected, setIsConnected] = useState(false);
   const [stats, setStats] = useState({
     ticksPerMinute: 0,
@@ -380,7 +381,8 @@ export default function Home() {
           return newTicks;
         });
         setCurrentPrice(tick.price);
-        setLastTickTimestamp(tick.timestamp); // Capture timestamp
+        setLastTickTimestamp(tick.timestamp);
+        setLatestTick({ price: tick.price, timestamp: tick.timestamp }); // Atomic Update
         setMarketState(prev => ({ ...prev, currentPrice: tick.price, direction: tick.direction }));
 
         // Update stats
@@ -596,6 +598,7 @@ export default function Home() {
               candles={candles}
               currentPrice={currentPrice}
               lastTickTimestamp={lastTickTimestamp}
+              latestTick={latestTick}
               timeframe={selectedTimeframe}
               direction={marketState.direction}
               activeTrades={activeTrades}

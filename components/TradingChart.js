@@ -8,7 +8,7 @@ const formatPrice = (price) => {
   return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 };
 
-export default function TradingChart({ candles, currentPrice, lastTickTimestamp, timeframe, direction, activeTrades = [], onCandlePersist, chartType = 'candle' }) {
+export default function TradingChart({ candles, currentPrice, lastTickTimestamp, latestTick, timeframe, direction, activeTrades = [], onCandlePersist, chartType = 'candle' }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -210,59 +210,56 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
   }, [candles]);
 
   // LIVE AGGREGATION: Update active candle visuals immediately on price change
+  // ATOMIC FIX: Use `latestTick` object to ensure price and timestamp are perfectly synced.
   useEffect(() => {
-    if (!currentPrice || renderCandlesRef.current.length === 0) return;
+    // If we haven't received a tick yet, use legacy props or return
+    const tickPrice = latestTick?.price || currentPrice;
+
+    // ATOMIC TIMESTAMP: Crucial for mobile sync.
+    // If latestTick is exhausted/used, we fallback to lastTickTimestamp prop.
+    const tickTimestamp = latestTick?.timestamp || lastTickTimestamp || Date.now();
+
+    if (!tickPrice || renderCandlesRef.current.length === 0) return;
 
     const lastCandle = renderCandlesRef.current[renderCandlesRef.current.length - 1];
 
-    // Only update if this candle is "current" (timestamp match roughly or assumes last IS current)
-    // We assume the last candle in the array IS the active one.
-
     // SAFETY CHECK: Prevent contaminating the *previous* candle if a new tick arrives 
     // before the Phantom Candle is created.
-    // We use server-provided `lastTickTimestamp` if available, otherwise fallback to check (less reliable)
-    const tickTime = lastTickTimestamp || Date.now();
-
     if (lastCandle.timestamp) {
       const duration = getTimeframeDuration(timeframe);
       const endTime = lastCandle.timestamp.getTime() + duration;
 
       // STRICT FILTER: If the TICK TIME itself is beyond the candle window, reject it.
-      // We allow a tiny buffer, but if the tick clearly belongs to the next block, ignore it.
-      if (tickTime >= endTime) return;
+      if (tickTimestamp >= endTime) return;
     }
 
     // Update Targets for smooth interpolation
-    lastCandle.targetClose = currentPrice;
-    if (currentPrice > lastCandle.targetHigh) lastCandle.targetHigh = currentPrice;
-    if (currentPrice < lastCandle.targetLow) lastCandle.targetLow = currentPrice;
+    lastCandle.targetClose = tickPrice;
+    if (tickPrice > lastCandle.targetHigh) lastCandle.targetHigh = tickPrice;
+    if (tickPrice < lastCandle.targetLow) lastCandle.targetLow = tickPrice;
 
     // Immediate update for High/Low (snap) to prevent "wick lag"
-    // We let Close interpolate, but High/Low must bound the price immediately
-    if (currentPrice > lastCandle.high) lastCandle.high = currentPrice;
-    if (currentPrice < lastCandle.low) lastCandle.low = currentPrice;
+    if (tickPrice > lastCandle.high) lastCandle.high = tickPrice;
+    if (tickPrice < lastCandle.low) lastCandle.low = tickPrice;
 
     // Mark as modified so persistence logic can pick it up if needed (though we prefer server source)
     lastCandle.isClientModified = true;
 
     // FRAMER MOTION: Update spring target
-    // We use set() to update the spring target immediately
     if (priceSpring) {
       // ASSET SWITCH FIX: If price change is massive (likely asset switch), SNAP immediately.
-      // Heuristic: If change is > 50% of current value, it's definitely an asset switch (or crash).
-      // Or if the spring value corresponds to a completely different price range.
       const currentSpringValue = priceSpring.get();
-      const diff = Math.abs(currentPrice - currentSpringValue);
+      const diff = Math.abs(tickPrice - currentSpringValue);
 
-      // If diff is > 10% of price, SNAP. (Forex/Crypto rarely moves 10% in 1 tick)
-      if (currentSpringValue === 0 || (currentPrice > 0 && diff / currentPrice > 0.1)) {
-        priceSpring.jump(currentPrice);
+      // If diff is > 10% of price, SNAP.
+      if (currentSpringValue === 0 || (tickPrice > 0 && diff / tickPrice > 0.1)) {
+        priceSpring.jump(tickPrice);
       } else {
-        priceSpring.set(currentPrice);
+        priceSpring.set(tickPrice);
       }
     }
 
-  }, [currentPrice]);
+  }, [latestTick]); // DEPENDENCY SWAP: Only trigger on atomic update
 
   // Draw chart with 60 FPS loop and interpolation
   useEffect(() => {
