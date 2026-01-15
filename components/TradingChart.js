@@ -34,9 +34,15 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
   const noiseTargetRef = useRef(0);
 
   // FRAMER MOTION: Spring for smooth price movement
-  // stiffness 60, damping 15 gives a quick but elastic feel (organic)
-  // mass 1 is standard.
   const priceSpring = useSpring(currentPrice || 0, { stiffness: 60, damping: 15, mass: 1 });
+
+  // ATOMIC REF: For accessing fresh tick data inside the closure of the render loop
+  const latestTickRef = useRef(latestTick);
+
+  // Sync Ref with Prop
+  useEffect(() => {
+    latestTickRef.current = latestTick;
+  }, [latestTick]);
 
   // Persistent Visual State for Active Candle (to persist wicks from jitter)
   const activeCandleVisualRef = useRef({ timestamp: 0, high: -Infinity, low: Infinity });
@@ -343,10 +349,8 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       const duration = getTimeframeDuration(timeframe);
 
       // LATENCY FIX: Use Max(Local, Server) for current time.
-      // On Mobile, Local Clock might be slow. We trust Server Time (lastTimestampRef) if it's ahead.
-      // We use `lastTickTimestamp` (prop) or `lastTimestampRef.current` (canvas loop time).
-      // `lastTickTimestamp` is more reliable for "Data Time".
-      const serverTime = lastTickTimestamp || 0;
+      // On Mobile, Local Clock might be slow. We trust Server Time (via Ref to avoid stale closure) if it's ahead.
+      const serverTime = latestTickRef.current?.timestamp || 0;
       const effectiveNow = Math.max(Date.now(), serverTime);
 
       const expectedTime = effectiveNow - (effectiveNow % duration); // e.g. xx:xx:00, xx:xx:05
