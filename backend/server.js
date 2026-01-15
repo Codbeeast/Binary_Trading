@@ -402,68 +402,83 @@ function startSyntheticMultiAssetGeneration() {
                 console.error('❌ Error invoking fetchInitialPrices:', err);
         }
 
-        tickInterval = setInterval(async () => {
-                if (!marketState.isActive) return;
+        // ALIGNMENT FIX: Sync to the nearest second to prevent "visual drift"
+        const now = Date.now();
+        const msUntilNextSecond = 1000 - (now % 1000);
 
-                ALL_ASSETS.forEach(asset => {
-                        // If mode is REAL, skip Crypto assets (Binance handles them)
-                        // UNLESS Binance is disabled/failed, but we assume it works.
-                        if (MARKET_DATA_MODE === 'real' && asset.type === 'crypto') return;
+        console.log(`⏱️ Aligning synthetic loop: starting in ${msUntilNextSecond}ms`);
 
-                        const symbol = asset.symbol;
-                        const state = getAssetState(symbol);
-                        const ms = state.marketState;
-                        const man = state.manipulationState;
+        setTimeout(() => {
+                // Determine tick speed - prefer 200ms for 5s/1s divisibility if using default 300
+                // If DB has 300, we override to 200 for smoother alignment unless it's a user setting?
+                // For synthetic stability, 200ms is much better.
+                const SYNTHETIC_TICK_SPEED = 200;
 
-                        // Generate Price Movement
-                        // Use asset-specific volatility if we had it, otherwise global defaults
-                        // For variety, we can vary volatility slightly per asset type
-                        let volatilityMultiplier = 1.0;
-                        if (asset.type === 'forex') volatilityMultiplier = 0.3; // Forex moves slower
-                        if (asset.type === 'commodity') volatilityMultiplier = 0.5;
+                // Define the run function
+                const runTick = async () => {
+                        if (!marketState.isActive) return;
 
-                        const newPrice = generateNextPrice(
-                                ms.currentPrice,
-                                ms.direction,
-                                ms.volatility * volatilityMultiplier
-                        );
+                        ALL_ASSETS.forEach(asset => {
+                                // If mode is REAL, skip Crypto assets (Binance handles them)
+                                // UNLESS Binance is disabled/failed, but we assume it works.
+                                if (MARKET_DATA_MODE === 'real' && asset.type === 'crypto') return;
 
-                        // --- MANIPULATION LOGIC for Synthetic Assets ---
-                        // (Re-using the logic from binance connection, simplified here)
-                        // Ideally we extract the manipulation logic to a shared function
-                        // For now, simpler manipulation for synthetic:
-                        if (man.mode !== 'neutral') {
-                                // Apply simple drift
-                                const drift = ms.currentPrice * 0.0001;
-                                if (man.mode === 'up') ms.currentPrice += drift;
-                                if (man.mode === 'down') ms.currentPrice -= drift;
-                        } else {
-                                ms.currentPrice = newPrice;
-                        }
+                                const symbol = asset.symbol;
+                                const state = getAssetState(symbol);
+                                const ms = state.marketState;
+                                const man = state.manipulationState;
 
-                        const timestamp = Date.now();
+                                // Generate Price Movement
+                                // Use asset-specific volatility if we had it, otherwise global defaults
+                                // For variety, we can vary volatility slightly per asset type
+                                let volatilityMultiplier = 1.0;
+                                if (asset.type === 'forex') volatilityMultiplier = 0.3; // Forex moves slower
+                                if (asset.type === 'commodity') volatilityMultiplier = 0.5;
 
-                        // Emit
-                        io.to(symbol).emit('tick_update', {
-                                price: ms.currentPrice,
-                                timestamp,
-                                direction: ms.direction,
-                                symbol: symbol
-                        });
+                                const newPrice = generateNextPrice(
+                                        ms.currentPrice,
+                                        ms.direction,
+                                        ms.volatility * volatilityMultiplier
+                                );
 
-                        // Update Candles
-                        for (const timeframe of ['5s', '15s', '30s', '1m']) {
-                                const result = updateAssetCandle(symbol, timeframe, ms.currentPrice, timestamp);
-                                if (result.isNew && result.completedCandle) {
-                                        saveCandle(result.completedCandle);
-                                        io.to(symbol).emit('candle_complete', result.completedCandle);
-                                } else if (!result.isNew && result.candle) {
-                                        io.to(symbol).emit('candle_update', result.candle);
+                                // --- MANIPULATION LOGIC for Synthetic Assets ---
+                                // (Re-using the logic from binance connection, simplified here)
+                                // Ideally we extract the manipulation logic to a shared function
+                                // For now, simpler manipulation for synthetic:
+                                if (man.mode !== 'neutral') {
+                                        // Apply simple drift
+                                        const drift = ms.currentPrice * 0.0001;
+                                        if (man.mode === 'up') ms.currentPrice += drift;
+                                        if (man.mode === 'down') ms.currentPrice -= drift;
+                                } else {
+                                        ms.currentPrice = newPrice;
                                 }
-                        }
-                });
 
-        }, marketState.tickSpeed);
+                                const timestamp = Date.now();
+
+                                // Emit
+                                io.to(symbol).emit('tick_update', {
+                                        price: ms.currentPrice,
+                                        timestamp,
+                                        direction: ms.direction,
+                                        symbol: symbol
+                                });
+
+                                // Update Candles
+                                for (const timeframe of ['5s', '15s', '30s', '1m']) {
+                                        processAssetCandle(symbol, timeframe, ms.currentPrice, timestamp);
+                                }
+                        });
+                };
+
+                // Run immediately once aligned
+                runTick();
+
+                // Start Loop
+                tickInterval = setInterval(runTick, SYNTHETIC_TICK_SPEED);
+                console.log(`🚀 Synthetic loop started with ${SYNTHETIC_TICK_SPEED}ms interval.`);
+
+        }, msUntilNextSecond);
 }
 
 // Helper to update specific asset candle (refactored from updateCandle)
@@ -692,6 +707,7 @@ function processAssetCandle(symbol, timeframe, price, timestamp) {
                 tracker.startTime = alignedTimestamp; // Use ALIGNED time
 
                 if (completedCandle) {
+                        // console.log('🔥 CANDLE COMPLETE:', symbol, completedCandle.timeframe, completedCandle.close);
                         saveCandle(completedCandle); // Save with symbol
                         io.to(symbol).emit('candle_complete', completedCandle);
                 }
@@ -701,6 +717,7 @@ function processAssetCandle(symbol, timeframe, price, timestamp) {
                 tracker.low = Math.min(tracker.low, price);
                 tracker.close = price;
 
+                // console.log('⚡ CANDLE UPDATE:', symbol, timeframe, price); // Verbose
                 io.to(symbol).emit('candle_update', {
                         open: tracker.open,
                         high: tracker.high,

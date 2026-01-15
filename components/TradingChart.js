@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useSpring, useMotionValue } from "framer-motion";
 
-export default function TradingChart({ candles, currentPrice, timeframe, direction, activeTrades = [], onCandlePersist }) {
+const formatPrice = (price) => {
+  if (typeof price !== 'number') return '0.00';
+  return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+};
+
+export default function TradingChart({ candles, currentPrice, lastTickTimestamp, timeframe, direction, activeTrades = [], onCandlePersist, chartType = 'candle' }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -27,6 +32,11 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
   // Visual Noise Refs
   const noiseRef = useRef(0);
   const noiseTargetRef = useRef(0);
+
+  // FRAMER MOTION: Spring for smooth price movement
+  // stiffness 60, damping 15 gives a quick but elastic feel (organic)
+  // mass 1 is standard.
+  const priceSpring = useSpring(currentPrice || 0, { stiffness: 60, damping: 15, mass: 1 });
 
   // Persistent Visual State for Active Candle (to persist wicks from jitter)
   const activeCandleVisualRef = useRef({ timestamp: 0, high: -Infinity, low: Infinity });
@@ -184,6 +194,20 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
     // Only update if this candle is "current" (timestamp match roughly or assumes last IS current)
     // We assume the last candle in the array IS the active one.
 
+    // SAFETY CHECK: Prevent contaminating the *previous* candle if a new tick arrives 
+    // before the Phantom Candle is created.
+    // We use server-provided `lastTickTimestamp` if available, otherwise fallback to check (less reliable)
+    const tickTime = lastTickTimestamp || Date.now();
+
+    if (lastCandle.timestamp) {
+      const duration = getTimeframeDuration(timeframe);
+      const endTime = lastCandle.timestamp.getTime() + duration;
+
+      // STRICT FILTER: If the TICK TIME itself is beyond the candle window, reject it.
+      // We allow a tiny buffer, but if the tick clearly belongs to the next block, ignore it.
+      if (tickTime >= endTime) return;
+    }
+
     // Update Targets for smooth interpolation
     lastCandle.targetClose = currentPrice;
     if (currentPrice > lastCandle.targetHigh) lastCandle.targetHigh = currentPrice;
@@ -196,6 +220,10 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
     // Mark as modified so persistence logic can pick it up if needed (though we prefer server source)
     lastCandle.isClientModified = true;
+
+    // FRAMER MOTION: Update spring target
+    // We use set() to update the spring target immediately
+    if (priceSpring) priceSpring.set(currentPrice);
 
   }, [currentPrice]);
 
@@ -249,31 +277,14 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       }
 
       // Interpolate price (unchanged)
+      // Interpolate price (unchanged)
       if (renderPriceRef.current == null) {
         renderPriceRef.current = currentPrice;
       } else {
-        // Micro-Jitter Logic (Binomo-like "Flexibility")
-        // 1. Update random target occasionally (SLOWER: 2% chance per frame)
-        if (Math.random() < 0.02) {
-          const scale = (currentPrice || 100) * 0.00015; // Moderate amplitude
-          noiseTargetRef.current = (Math.random() - 0.5) * scale;
-        }
-        // 2. Interpolate noise (smoothed random walk - MUCH SLOWER)
-        const NOISE_SMOOTHING = 0.005;
-        noiseRef.current += (noiseTargetRef.current - noiseRef.current) * NOISE_SMOOTHING;
-
-        const target = currentPrice + noiseRef.current; // Target includes noise
-        const visible = renderPriceRef.current;
-        let velocity = priceVelocityRef.current;
-
-        // Physics: Slower, more stable
-        const stiffness = 0.01;
-        const damping = 0.95;
-        const accel = (target - visible) * stiffness;
-        velocity += accel;
-        velocity *= damping;
-        priceVelocityRef.current = velocity;
-        renderPriceRef.current = visible + velocity;
+        // FRAMER MOTION: Use spring value for organic smoothing
+        // The spring handles the interpolation physics automatically.
+        // renderPriceRef.current is updated to the current spring value for drawing.
+        renderPriceRef.current = priceSpring.get();
       }
 
       const visiblePrice = renderPriceRef.current ?? currentPrice ?? 0;
@@ -291,13 +302,63 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
       // Interpolate candles (unchanged)
       const renderCandles = renderCandlesRef.current;
+
+      // --- PHANTOM CANDLE INJECTION (Zero-Latency) ---
+      // If the timer has reset (Wall Clock) but the Socket hasn't sent the new candle yet,
+      // we inject a "Phantom" candle to ensure the graph splits INSTANTLY.
+      const duration = getTimeframeDuration(timeframe);
+      const now = Date.now();
+      const expectedTime = now - (now % duration); // e.g. xx:xx:00, xx:xx:05
+
+      if (renderCandles.length > 0) {
+        const lastCandle = renderCandles[renderCandles.length - 1];
+        const lastTime = lastCandle.timestamp ? lastCandle.timestamp.getTime() : 0;
+
+        // If our data lags behind wall clock (Latency Gap)
+        if (lastTime < expectedTime && (expectedTime - lastTime < duration * 2)) {
+          // Create Phantom Candle
+          // It's a temporary visual object attached to the end of the array
+          // The "Live Aggregation" logic below (Line 300+) will animate it.
+          const phantom = {
+            timestamp: new Date(expectedTime),
+            open: currentPrice,
+            close: currentPrice,
+            high: currentPrice,
+            low: currentPrice,
+            targetOpen: currentPrice,
+            targetClose: currentPrice,
+            targetHigh: currentPrice,
+            targetLow: currentPrice,
+            isPhantom: true
+          };
+          // We push it to the reference array so it renders this frame
+          // It will be overwritten when real data arrives via props
+          renderCandles.push(phantom);
+        }
+      }
+      // -----------------------------------------------
+
+      // -----------------------------------------------
+
       const lerpFactor = 0.2;
       for (let i = 0; i < renderCandles.length; i++) {
         const c = renderCandles[i];
-        c.open += (c.targetOpen - c.open) * lerpFactor;
-        c.high += (c.targetHigh - c.high) * lerpFactor;
-        c.low += (c.targetLow - c.low) * lerpFactor;
-        c.close += (c.targetClose - c.close) * lerpFactor;
+
+        // SNAP LOGIC:
+        // Open/High/Low are historical (or start points). They should NOT animate if corrected by server.
+        // If the server says "Actuall Open was X", we snap to X immediately to avoid "stretching" body.
+        c.open = c.targetOpen;
+        c.high = c.targetHigh;
+        c.low = c.targetLow;
+
+        // Close is dynamic (follows price). We can interpolate, but if it's the active candle,
+        // it should ideally stick to the price line.
+        // If it's a closed candle (history), it should snap too.
+        if (i === renderCandles.length - 1 && !c.isPhantom) {
+          c.close += (c.targetClose - c.close) * lerpFactor;
+        } else {
+          c.close = c.targetClose;
+        }
       }
 
       // Layout calculations
@@ -341,6 +402,9 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       const visibleCandles = [];
       const viewMinX = padding.left - candleWidth;
       const viewMaxX = width - padding.right + candleWidth;
+
+      // DEBUG: unexpected render halt?
+      // console.log('Render:', { count: renderCandles.length, type: chartType });
 
       for (let i = 0; i < renderCandles.length; i++) {
         // ... rest of loop
@@ -464,20 +528,13 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
       }
 
       // 3. Draw candles (The main content)
-      const wickWidth = (isPortraitMobile || isLandscapeMobile) ? 2.0 : 1.5; // Thicker wicks for mobile
-      const MIN_BODY_HEIGHT = 2; // Minimum visible body height in pixels
+      const wickWidth = (isPortraitMobile || isLandscapeMobile) ? 2.0 : 1.5;
 
-      // Helper for deterministic noise (seeded by timestamp)
-      const getPseudoRandom = (seed) => {
-        const x = Math.sin(seed) * 10000;
-        return x - Math.floor(x); // 0..1
-      };
-
-      // HOVER DETECTION FOR TOOLTIP
+      // HOVER DETECTION FOR TOOLTIP (Restored)
       let hoveredCandleData = null;
       if (hoverStateRef.current.x !== null) {
         const mX = hoverStateRef.current.x;
-        // Invert index logic again
+        // Invert index logic to find which candle is under the cursor
         const idx = Math.round(
           (renderCandles.length - 1) +
           (mX - scrollOffsetRef.current - (padding.left + pastWidth)) / candleFullWidth
@@ -487,154 +544,195 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
         }
       }
 
+      // --- DATA PREPARATION (Heikin Ashi) ---
+      let drawCandles = renderCandles;
+      if (chartType === 'heikin' && renderCandles.length > 0) {
+        // Calculate Heikin Ashi values
+        let haCandles = [];
+        let prevHaOpen = renderCandles[0].open;
+        let prevHaClose = renderCandles[0].close;
 
-      renderCandles.forEach((candle, index) => {
-        const x = indexToX(index);
+        for (let i = 0; i < renderCandles.length; i++) {
+          const c = renderCandles[i];
+          const haClose = (c.open + c.high + c.low + c.close) / 4;
+          let haOpen = (i === 0) ? (c.open + c.close) / 2 : (prevHaOpen + prevHaClose) / 2;
+          const haHigh = Math.max(c.high, haOpen, haClose);
+          const haLow = Math.min(c.low, haOpen, haClose);
 
-        // Optimization: only draw if visible and inside the chart box
-        if (x + candleWidth < padding.left || x > width - padding.right) {
-          return;
+          haCandles.push({ ...c, open: haOpen, close: haClose, high: haHigh, low: haLow });
+          prevHaOpen = haOpen;
+          prevHaClose = haClose;
         }
+        drawCandles = haCandles;
+      }
+      // -------------------------------------
 
-        let { open, close, high, low, timestamp } = candle;
-        const ts = timestamp ? timestamp.getTime() : 0;
 
-        // "Artificial Life" REMOVED: Since we now persist the exact client-side visual state to the DB,
-        // we no longer need to fake it on load. The data from the server is now "organic" enough.
-
-        // SYNC LATEST CANDLE WITH VISIBLE PRICE LINE
-        if (index === renderCandles.length - 1) {
-          const ts = candle.timestamp ? candle.timestamp.getTime() : 0;
-          let visual = activeCandleVisualRef.current;
-          if (visual.timestamp !== ts) {
-            visual = { timestamp: ts, high: -Infinity, low: Infinity };
-            activeCandleVisualRef.current = visual;
-          }
-
-          close = finalVisiblePrice;
-
-          // Update persistent visual limits
-          if (close > visual.high) visual.high = close;
-          if (close < visual.low) visual.low = close;
-
-          high = Math.max(high, visual.high);
-          low = Math.min(low, visual.low);
-
-          // SNAP FIX: Commit visual state to the candle object so it persists after close
-          candle.close = close;
-          candle.high = high;
-          candle.low = low;
-          candle.targetClose = close;
-          candle.targetHigh = high;
-          candle.targetLow = low;
-          candle.isClientModified = true;
-        }
-
-        const openY = priceToY(open);
-        const closeY = priceToY(close);
-        const highY = priceToY(high);
-        const lowY = priceToY(low);
-
-        const EPSILON = 0.0000001; // Precision tolerance for 6-decimal comparison
-        const openVal = Number(open);
-        const closeVal = Number(close);
-        const isFlat = Math.abs(closeVal - openVal) < EPSILON;
-        const isBullish = closeVal > openVal; // Strict inequality
-
-        // Color Logic: Bullish (Green), Bearish (Red), Flat (Gray)
-        const color = isFlat ? "#A6ABB5" : (isBullish ? "#18D67D" : "#E65252");
-
-        // Body Height Logic
-        let bodyTop = Math.min(openY, closeY);
-        let bodyH = Math.abs(closeY - openY);
-
-        // Enforce Minimum Visual Body Size (3px)
-        const MIN_VIS_BODY = 3;
-        if (bodyH < MIN_VIS_BODY) {
-          const diff = MIN_VIS_BODY - bodyH;
-          bodyH = MIN_VIS_BODY;
-          bodyTop -= diff / 2;
-        }
-
-        // Wick Logic - Force visibility with explicit extension
-        let wTop = highY;
-        let wBottom = lowY;
-
-        // 1. Top Wick (High > max(open, close))
-        // Use a small epsilon for float comparison to avoid flickering on 'equal' values
-        if (high > Math.max(open, close) + 0.000001) {
-          // Ensure wTop is visually distinguishable
-          // If the natural wick is shorter than 3px, extend it to 3px
-          if (bodyTop - wTop < 3.0) {
-            wTop = bodyTop - 3.0;
-          }
-        } else {
-          wTop = bodyTop;
-        }
-
-        // 2. Bottom Wick (Low < min(open, close))
-        const bodyBottom = bodyTop + bodyH;
-
-        // Use epsilon
-        if (low < Math.min(open, close) - 0.000001) {
-          // Ensure wBottom is visually distinguishable
-          if (wBottom - bodyBottom < 3.0) {
-            wBottom = bodyBottom + 3.0;
-          }
-        } else {
-          wBottom = bodyBottom;
-        }
-
-        // DEBUG: Log render details for the hovered candle
-        if (hoverStateRef.current && hoverStateRef.current.index === index) {
-          console.log(`Render Hover [${index}]:`, {
-            O: open, H: high, L: low, C: close,
-            wTop: wTop.toFixed(1), bodyTop: bodyTop.toFixed(1),
-            diff: (bodyTop - wTop).toFixed(1)
-          });
-        }
-
-        ctx.strokeStyle = color;
-        ctx.lineWidth = wickWidth;
+      // --- LINE / MOUNTAIN RENDERER ---
+      if (chartType === 'line' || chartType === 'mountain') {
         ctx.beginPath();
-        ctx.moveTo(x + candleWidth / 2, wTop);
-        ctx.lineTo(x + candleWidth / 2, wBottom);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#18D67D"; // Main Line Color (Greenish/Theme)
+
+        let firstPoint = true;
+        let startX = 0;
+
+        // Build Path
+        drawCandles.forEach((candle, index) => {
+          const x = indexToX(index) + candleWidth / 2;
+
+          // Skip if way off screen
+          if (x < -100 || x > width + 100) return;
+
+          let closePrice = candle.close;
+
+          // LIVE SYNC: Force the last point to match the current price line (Ref)
+          if (index === drawCandles.length - 1) {
+            // We use the same 'active visual' logic as candles to ensure consistency
+            let visual = activeCandleVisualRef.current;
+            const ts = candle.timestamp ? candle.timestamp.getTime() : 0;
+
+            // Sync logic
+            if (visual.timestamp === ts) {
+              // Use the visual high/low logic if needed, but for Line we mostly care about Close
+              closePrice = finalVisiblePrice;
+            }
+          }
+
+          const y = priceToY(closePrice);
+          if (firstPoint) {
+            ctx.moveTo(x, y);
+            startX = x;
+            firstPoint = false;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+
         ctx.stroke();
 
-        // Body
-        ctx.fillStyle = color;
-        const radius = bodyH < 4 ? 0 : Math.min(3, candleWidth / 2);
-        const bw = candleWidth - 1;
-        const bx = x + 0.5;
-
-        if (radius > 0) {
-          ctx.beginPath();
-          ctx.moveTo(bx, bodyTop + radius);
-          ctx.lineTo(bx, bodyTop + bodyH - radius);
-          ctx.quadraticCurveTo(bx, bodyTop + bodyH, bx + radius, bodyTop + bodyH);
-          ctx.lineTo(bx + bw - radius, bodyTop + bodyH);
-          ctx.quadraticCurveTo(bx + bw, bodyTop + bodyH, bx + bw, bodyTop + bodyH - radius);
-          ctx.lineTo(bx + bw, bodyTop + radius);
-          ctx.quadraticCurveTo(bx + bw, bodyTop, bx + bw - radius, bodyTop);
-          ctx.lineTo(bx + radius, bodyTop);
-          ctx.quadraticCurveTo(bx, bodyTop, bx, bodyTop + radius);
-          ctx.closePath();
+        // Mountain Fill
+        if (chartType === 'mountain') {
+          ctx.lineTo(width, height); // Bottom Right
+          ctx.lineTo(startX, height); // Bottom Left (approx)
+          ctx.fillStyle = (() => {
+            const gradient = ctx.createLinearGradient(0, 0, 0, height);
+            gradient.addColorStop(0, "rgba(24, 214, 125, 0.4)");
+            gradient.addColorStop(1, "rgba(24, 214, 125, 0.0)");
+            return gradient;
+          })();
           ctx.fill();
-        } else {
-          ctx.fillRect(bx, bodyTop, bw, bodyH);
         }
+      }
+      // --- BAR / CANDLE / HEIKIN RENDERER ---
+      else {
+        drawCandles.forEach((candle, index) => {
+          const x = indexToX(index);
 
-        // Glow for last candle
-        if (index === renderCandles.length - 1) {
-          ctx.save();
-          ctx.shadowColor = color;
-          ctx.shadowBlur = 15;
-          ctx.shadowOffsetX = 0;
-          ctx.shadowOffsetY = 0;
-          ctx.fill();
-          ctx.restore();
-        }
-      });
+          if (x + candleWidth < padding.left || x > width - padding.right) return;
+
+          let { open, close, high, low, timestamp } = candle;
+
+          // Adjust active candle visual if needed (mostly for standard candles, HA pre-calc handles it)
+          // Adjust active candle visual if needed (mostly for standard candles, HA pre-calc handles it)
+          if (chartType === 'candle' && index === drawCandles.length - 1) {
+            const ts = candle.timestamp ? candle.timestamp.getTime() : 0;
+            let visual = activeCandleVisualRef.current;
+            if (visual.timestamp !== ts) {
+              visual = { timestamp: ts, high: -Infinity, low: Infinity };
+              activeCandleVisualRef.current = visual;
+            }
+
+            // Sync Close to Price Line
+            close = finalVisiblePrice;
+
+            // Update persistent visual limits (High/Low expansion)
+            if (close > visual.high) visual.high = close;
+            if (close < visual.low) visual.low = close;
+
+            high = Math.max(high, visual.high);
+            low = Math.min(low, visual.low);
+
+            // SNAP FIX: Commit visual state to the candle object so it persists after re-renders
+            // This is purely visual; backend data remains authoritative until next update
+            candle.targetClose = close;
+            candle.targetHigh = high;
+            candle.targetLow = low;
+          }
+
+          const openY = priceToY(open);
+          const closeY = priceToY(close);
+          const highY = priceToY(high);
+          const lowY = priceToY(low);
+
+          // Color Logic:
+          // If Open === Close (Doji), normally neutral grey. 
+          // But for active/new candles, we want to show direction based on movement from PREVIOUS candle.
+          let isBullish = close > open;
+          let isBearish = close < open;
+          let color;
+
+          if (isBullish) {
+            color = "#18D67D";
+          } else if (isBearish) {
+            color = "#E65252";
+          } else {
+            // Neutral (Open === Close)
+            // Look at previous candle to decide "Gap" direction or Momentum
+            const prevCandle = index > 0 ? drawCandles[index - 1] : null;
+            if (prevCandle && close > prevCandle.close) {
+              color = "#18D67D"; // Gap Up / Move Up
+            } else if (prevCandle && close < prevCandle.close) {
+              color = "#E65252"; // Gap Down / Move Down
+            } else {
+              color = "#A6ABB5"; // Truly neutral
+            }
+          }
+
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineWidth = wickWidth;
+
+          if (chartType === 'bar') {
+            // OHLC Bar
+            const cx = x + candleWidth / 2;
+            // Vertical Stem (High to Low)
+            ctx.beginPath();
+            ctx.moveTo(cx, highY);
+            ctx.lineTo(cx, lowY);
+            ctx.stroke();
+
+            // Open Tick (Left)
+            ctx.beginPath();
+            ctx.moveTo(cx, openY);
+            ctx.lineTo(cx - candleWidth / 2, openY);
+            ctx.stroke();
+
+            // Close Tick (Right)
+            ctx.beginPath();
+            ctx.moveTo(cx, closeY);
+            ctx.lineTo(cx + candleWidth / 2, closeY);
+            ctx.stroke();
+          } else {
+            // Candle / Heikin (Body + Wicks)
+
+            // Wick
+            ctx.beginPath();
+            ctx.moveTo(x + candleWidth / 2, highY);
+            ctx.lineTo(x + candleWidth / 2, lowY);
+            ctx.stroke();
+
+            // Body
+            const bodyH = Math.max(1, Math.abs(closeY - openY));
+            const bodyTop = Math.min(openY, closeY);
+
+            // Allow filled/hollow style or just solid
+            // User asked for "matching chart page", usually solid bodies
+            ctx.fillRect(x, bodyTop, candleWidth, bodyH);
+          }
+        });
+      }
+
 
       // DRAW OHLC TOOLTIP (Top Left)
       if (hoveredCandleData) {
@@ -728,25 +826,27 @@ export default function TradingChart({ candles, currentPrice, timeframe, directi
 
         const timestamp = activeCandle.timestamp;
         if (timestamp && !isNaN(timestamp.getTime())) {
-          const startTime = timestamp.getTime();
-          const elapsed = Date.now() - startTime;
-          const remain = Math.max(0, duration - elapsed);
+          // WALL CLOCK SYNC (Requested)
+          // Align precise countdown to global time grid (e.g. every 5s)
+          // This eliminates drift and gaps caused by backend latency or candle timestamp jitter.
+          const now = Date.now();
+          const remain = duration - (now % duration);
 
-          // Format MM:SS
-          let totalSeconds = Math.ceil(remain / 1000);
+          // Use Ceil to show "5" for 4.9s etc.
+          // If remain is super small (e.g. 0.001), show 0 momentarily or wrap?
+          // User asked for "reaches 0", then "instantly resets to 5".
+          let seconds = Math.ceil(remain / 1000);
 
-          // Clamp to max duration to avoid showing e.g. 6s or 7s for a 5s candle (due to clock drift)
-          const maxSeconds = duration / 1000;
-          if (totalSeconds > maxSeconds) totalSeconds = maxSeconds;
+          // Special case: If exactly at 0 boundary (unlikely with ceil unless exactly 0)
+          // or if 5000 -> 5.
 
-          const mm = Math.floor(totalSeconds / 60);
-          const ss = totalSeconds % 60;
-          const text = `${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`;
+          // Format 00:00
+          const text = `00:${seconds.toString().padStart(2, '0')}`;
 
           // Draw Text
           ctx.save();
           ctx.fillStyle = "#E3E5E8"; // Light/White text
-          ctx.font = "500 12px monospace"; // Monospace for stable jitter
+          ctx.font = "bold 13px system-ui";
           ctx.textAlign = "right";
           ctx.shadowColor = "#000000";
           ctx.shadowBlur = 4;

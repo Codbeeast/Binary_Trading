@@ -11,14 +11,15 @@ import TimeframeSelector from "@/components/TimeframeSelector";
 import TimeSelector from "@/components/TimeSelector";
 import RecentTrades from "@/components/RecentTrades";
 import AssetSelector from "@/components/AssetSelector";
+import ChartTypeModal from "@/components/ChartTypeModal"; // Import Modal
 import UserMenu from "@/components/UserMenu";
-import { User, Menu, SlidersHorizontal, ArrowRightSquare, X } from "lucide-react";
+import { User, Menu, SlidersHorizontal, ArrowRightSquare, X, CandlestickChart } from "lucide-react"; // Import Icon
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const router = useRouter();
-  const [userId, setUserId] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter(); // Restore router
+  const [userId, setUserId] = useState(null); // Restore userId
+  const [isLoading, setIsLoading] = useState(true); // Restore isLoading
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -29,21 +30,21 @@ export default function Home() {
   // Protect Route
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/login");
+      router.push("/login"); // Now router is defined
     } else if (status === "authenticated" && session?.user) {
       setUserId(session.user.id);
     }
   }, [status, session, router]);
 
+
   // UI State for Mobile
   const [isTradePanelOpen, setIsTradePanelOpen] = useState(false);
+  const [isChartTypeModalOpen, setIsChartTypeModalOpen] = useState(false); // Modal State
   const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
 
-  // Skip rendering if not authenticated to prevent flash
+  // Socket State
+  const [socket, setSocket] = useState(null); // Restore socket state
 
-
-  // Socket and Chart logic continues below... (removed localStorage ID generation)
-  const [socket, setSocket] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(100.00);
   const [marketState, setMarketState] = useState({
     direction: 'neutral',
@@ -55,6 +56,7 @@ export default function Home() {
   const [tradeAmount, setTradeAmount] = useState(100);
   const [selectedTimeframe, setSelectedTimeframe] = useState('5s');
   const [selectedAsset, setSelectedAsset] = useState('BTCUSDT');
+  const [chartType, setChartType] = useState('candle'); // Chart Type State
   const selectedAssetRef = useRef('BTCUSDT');
 
   // -- PERSISTENCE LOGIC START --
@@ -65,12 +67,12 @@ export default function Home() {
       const savedAmount = localStorage.getItem('binary_trade_amount');
       const savedTimeframe = localStorage.getItem('binary_selected_timeframe');
       const savedAsset = localStorage.getItem('binary_selected_asset');
-
-      // console.log('DEBUG: LocalStorage Load', { savedAmount, savedTimeframe, savedAsset });
+      const savedChartType = localStorage.getItem('binary_chart_type'); // Load
 
       if (savedAmount) setTradeAmount(Number(savedAmount));
       if (savedTimeframe) setSelectedTimeframe(savedTimeframe);
       if (savedAsset) setSelectedAsset(savedAsset);
+      if (savedChartType) setChartType(savedChartType); // Set
 
       const savedDuration = localStorage.getItem('binary_trade_duration');
       if (savedDuration) setTradeDuration(Number(savedDuration));
@@ -96,6 +98,10 @@ export default function Home() {
     if (isSettingsLoaded) localStorage.setItem('binary_trade_duration', tradeDuration);
   }, [tradeDuration, isSettingsLoaded]);
 
+  useEffect(() => {
+    if (isSettingsLoaded) localStorage.setItem('binary_chart_type', chartType);
+  }, [chartType, isSettingsLoaded]); // Persist
+
   // -- PERSISTENCE LOGIC END --
 
   useEffect(() => {
@@ -106,6 +112,7 @@ export default function Home() {
   // Structure: { '5s': [...], ... }
   const [candlesMap, setCandlesMap] = useState({});
   const [ticks, setTicks] = useState([]);
+  const [lastTickTimestamp, setLastTickTimestamp] = useState(null); // New state for precise sync
   const [isConnected, setIsConnected] = useState(false);
   const [stats, setStats] = useState({
     ticksPerMinute: 0,
@@ -246,6 +253,9 @@ export default function Home() {
     }
   };
 
+
+
+
   // Initialize Socket.IO
   useEffect(() => {
     // Connect to specific namespace and room
@@ -370,6 +380,7 @@ export default function Home() {
           return newTicks;
         });
         setCurrentPrice(tick.price);
+        setLastTickTimestamp(tick.timestamp); // Capture timestamp
         setMarketState(prev => ({ ...prev, currentPrice: tick.price, direction: tick.direction }));
 
         // Update stats
@@ -530,12 +541,21 @@ export default function Home() {
                   setSelectedTimeframe(tf);
                 }}
               />
+
+              <div className="h-8 w-px bg-[#2C303A]" />
+              {/* Chart Type Trigger */}
+              <button
+                onClick={() => setIsChartTypeModalOpen(true)}
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-[#2C303A] transition-colors"
+                title="Chart Type"
+              >
+                <CandlestickChart size={20} />
+              </button>
             </div>
           </div>
 
           <div className="flex items-center gap-3 lg:gap-4 shrink-0">
-
-            {/* Balance Display */}
+            {/* ... balance ... */}
             <div className="flex flex-col items-end">
               <span className="text-[10px] lg:text-[11px] font-medium text-gray-400 uppercase tracking-wider">Demo account</span>
               <span className="font-bold text-sm lg:text-lg tabular-nums tracking-tight text-white shadow-black drop-shadow-sm">
@@ -547,7 +567,6 @@ export default function Home() {
             <button className="h-9 w-9 lg:h-10 lg:w-auto lg:px-6 rounded-xl bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm shadow-[0_4px_14px_rgba(249,115,22,0.4)] transition-all active:scale-95 flex items-center justify-center">
               <span className="hidden lg:inline">Deposit</span>
               <span className="lg:hidden">
-                {/* Wallet Icon */}
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
                   <path d="M2.25 2.25a.75.75 0 000 1.5h1.386c.17 0 .318.114.362.278l2.558 9.592a3.752 3.752 0 00-2.806 3.63c0 .414.336.75.75.75h15.75a.75.75 0 000-1.5H5.378A2.25 2.25 0 017.5 15h11.218a.75.75 0 00.674-.421 60.358 60.358 0 002.96-7.228.75.75 0 00-.525-.965A60.864 60.864 0 005.68 4.509l-.232-.867A1.875 1.875 0 003.636 2.25H2.25zM3.75 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM16.5 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" />
                 </svg>
@@ -562,6 +581,12 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
+        <ChartTypeModal
+          isOpen={isChartTypeModalOpen}
+          onClose={() => setIsChartTypeModalOpen(false)}
+          selectedType={chartType}
+          onSelect={setChartType}
+        />
         {/* Chart Section */}
         <section className="flex-1 relative bg-[#0F1115] flex flex-col min-w-0 pl-1">
 
@@ -570,11 +595,13 @@ export default function Home() {
             <TradingChart
               candles={candles}
               currentPrice={currentPrice}
+              lastTickTimestamp={lastTickTimestamp}
               timeframe={selectedTimeframe}
               direction={marketState.direction}
               activeTrades={activeTrades}
               onCandlePersist={handleCandlePersist}
               key={selectedAsset}
+              chartType={chartType}
             />
 
             {/* Mobile Floating Overlays */}
@@ -690,12 +717,14 @@ export default function Home() {
       </div>
 
       {/* Mobile Backdrop */}
-      {isTradePanelOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-[60] lg:hidden landscape:hidden backdrop-blur-sm transition-opacity"
-          onClick={() => setIsTradePanelOpen(false)}
-        />
-      )}
+      {
+        isTradePanelOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-[60] lg:hidden landscape:hidden backdrop-blur-sm transition-opacity"
+            onClick={() => setIsTradePanelOpen(false)}
+          />
+        )
+      }
 
       {/* Sidebar Controls - Drawer on mobile */}
       <aside className={`
@@ -768,6 +797,6 @@ export default function Home() {
         </div>
       </div>
 
-    </main>
+    </main >
   );
 }
