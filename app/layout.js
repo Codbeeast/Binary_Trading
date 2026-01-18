@@ -5,6 +5,11 @@ import { Providers } from '@/components/Providers';
 export const metadata = {
   title: 'Finexa - Binary Trading',
   description: 'Professional trading platform',
+  icons: {
+    icon: '/iconbarlogo.png',
+    shortcut: '/iconbarlogo.png',
+    apple: '/iconbarlogo.png',
+  },
 };
 
 export default function RootLayout({ children }) {
