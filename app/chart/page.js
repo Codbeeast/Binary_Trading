@@ -249,14 +249,17 @@ function ChartContent() {
     // Re-enable after delay
     setTimeout(() => setIsProcessingTrade(false), 1000);
 
+    // FIX: Use Server Time for all trade logic to prevent 3s lag
+    const serverNow = Date.now() + clockOffsetRef.current;
+
     // Use Absolute Expiry (Red Line)
     // GROUPING LOGIC: If there is an active trade for this asset, inherit its expiry.
     // This allows "Stacking" trades on the same candle.
-    let targetExpiry = expiryTimestamp || (Date.now() + 60000);
+    let targetExpiry = expiryTimestamp || (serverNow + 60000);
 
     const activeAssetTrades = activeTrades.filter(t =>
       (t.symbol === selectedAsset || t.asset === selectedAsset) &&
-      (new Date(t.expiryTime).getTime() > Date.now())
+      (new Date(t.expiryTime).getTime() > serverNow)
     );
 
     if (activeAssetTrades.length > 0) {
@@ -270,19 +273,19 @@ function ChartContent() {
 
       // Only join if it's not about to expire immediately (e.g. > 5s left)
       // Otherwise, the user might accidentally bet on a 1s candle.
-      if (existingExpiry - Date.now() > 5000) {
+      if (existingExpiry - serverNow > 5000) {
         targetExpiry = existingExpiry;
       }
     }
 
-    const calculatedDuration = Math.round((targetExpiry - Date.now()) / 1000);
+    const calculatedDuration = Math.round((targetExpiry - serverNow) / 1000);
 
     const newTrade = {
-      id: String(Date.now() + Math.random()),
+      id: String(serverNow + Math.random()),
       direction,
       amount: tradeAmount,
       entryPrice: currentPrice,
-      startTime: Date.now(),
+      startTime: serverNow,
       expiryTime: targetExpiry,
       duration: calculatedDuration,
       asset: selectedAsset,
