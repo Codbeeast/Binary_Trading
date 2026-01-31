@@ -102,22 +102,35 @@ function ChartContent() {
 
     let currentExpiry = setInitialExpiry();
 
-    // Auto-update Interval (Check every 1s)
-    const interval = setInterval(() => {
+    // Recursive Timeout for Precision (Better than setInterval)
+    // Ensures we hit the exact 30s "rollover" mark without 1s polling lag.
+    let timeoutId;
+
+    const scheduleNextUpdate = () => {
       const now = Date.now();
-      // Buffer: Update at 30s mark (Red Line = 30s remaining, Grey Line = 0s).
-      // Since TradingChart.js now enforces a 30s difference (Grey = Red - 30s),
-      // checking for < 30000 means we rollover EXACTLY when Grey hits 0.
-      // Resetting adds 60s -> Red becomes 90s -> Grey becomes 60s.
-      // This gives the perfect 60..0 countdown user requested.
-      if (currentExpiry && (currentExpiry - now) < 30000) {
-        // Increment by 1 minute
+      if (!currentExpiry) return;
+
+      // Target: When remaining time hits < 30s.
+      // Formula: rolloverTime = currentExpiry - 30000
+      const timeUntilRollover = (currentExpiry - 30000) - now;
+
+      if (timeUntilRollover <= 0) {
+        // Already in Dead Zone -> Trigger Update & Reschedule
         currentExpiry += 60000;
         setExpiryTimestamp(currentExpiry);
+        // Recursively schedule next
+        scheduleNextUpdate();
+      } else {
+        // Wait exact time + small buffer (50ms) to ensure we cross threshold
+        timeoutId = setTimeout(() => {
+          scheduleNextUpdate();
+        }, timeUntilRollover + 50);
       }
-    }, 1000);
+    };
 
-    return () => clearInterval(interval);
+    scheduleNextUpdate();
+
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const selectedAssetRef = useRef('BTCUSDT');
