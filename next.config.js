@@ -8,6 +8,19 @@ const nextConfig = {
       'bufferutil': 'commonjs bufferutil',
     })
     return config
+    return config
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'avatars.githubusercontent.com',
+      },
+    ],
   },
 }
 

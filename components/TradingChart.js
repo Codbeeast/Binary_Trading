@@ -8,7 +8,7 @@ const formatPrice = (price) => {
   return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 };
 
-export default function TradingChart({ candles, currentPrice, lastTickTimestamp, latestTick, timeframe, direction, activeTrades = [], onCandlePersist, chartType = 'candle' }) {
+export default function TradingChart({ candles, currentPrice, lastTickTimestamp, latestTick, timeframe, direction, activeTrades = [], onCandlePersist, chartType = 'candle', hoverDirection = null, userSelectedExpiry = null, userSelectedAsset = null }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -50,6 +50,12 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       clockOffsetRef.current = latestTick.timestamp - Date.now();
     }
   }, [latestTick]);
+
+  // SYNC USER EXPIRY REF
+  const userSelectedExpiryRef = useRef(userSelectedExpiry);
+  useEffect(() => {
+    userSelectedExpiryRef.current = userSelectedExpiry;
+  }, [userSelectedExpiry]);
 
   // Persistent Visual State for Active Candle (to persist wicks from jitter)
   const activeCandleVisualRef = useRef({ timestamp: 0, high: -Infinity, low: Infinity });
@@ -305,6 +311,8 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       const chartWidth = width - padding.left - padding.right;
       const chartHeight = height - padding.top - padding.bottom;
 
+      let redLineX = null; // Hoisted for shared access
+
       // Prevent execution if chart is not ready or data is invalid
       if (!isChartReady) {
         animationFrameRef.current = requestAnimationFrame(updateAndDraw);
@@ -415,8 +423,7 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       }
 
       // Layout calculations
-      // Layout calculations
-      const futureRatio = 0.12; // Reduced future space (was 0.2) to fill more screen with candles
+      const futureRatio = 0.40; // Increased to 40% (User Request: Candle at ~60% width)
       const futureWidth = chartWidth * futureRatio;
       const pastWidth = chartWidth - futureWidth;
 
@@ -426,15 +433,15 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       const isPortraitMobile = width < 768 && window.matchMedia("(orientation: portrait)").matches;
       const isLandscapeMobile = width < 950 && window.matchMedia("(orientation: landscape)").matches && height < 500;
 
-      let baseCandleCount = 70; // Desktop default
-      if (isPortraitMobile) baseCandleCount = 28;
-      else if (isLandscapeMobile) baseCandleCount = 45; // Wider than desktop, thinner than portrait
+      let baseCandleCount = 40; // Desktop default (Reduced from 70 to make candles thicker)
+      if (isPortraitMobile) baseCandleCount = 18; // Reduced for Mobile Portrait
+      else if (isLandscapeMobile) baseCandleCount = 30; // Reduced for Mobile Landscape
 
       const targetCandleCount = baseCandleCount * zoom;
 
       const candleFullWidth = pastWidth / targetCandleCount;
-      const candleWidth = candleFullWidth * 0.70; // Slightly wider (User request)
-      const spacing = candleFullWidth * 0.30;
+      const candleWidth = candleFullWidth * 0.85; // Significantly wider (User request: Thicker candles)
+      const spacing = candleFullWidth * 0.15;
 
       const totalCandleSpan = (candleWidth + spacing) * renderCandles.length;
 
@@ -474,10 +481,6 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
 
       const maxVal = Math.max(...priceArray, visiblePrice + 0.0001); // Ensure range > 0
       const minVal = Math.min(...priceArray, visiblePrice - 0.0001);
-
-      // Lazy Camera Logic (Stable Range)
-      // Instead of centering the price, we center the "Active Zone" (Highs/Lows of visible candles)
-      // This allows the price line to move up/down naturally within the screen.
 
       const range = maxVal - minVal;
       // Padding factor adjustment
@@ -522,6 +525,23 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       ctx.fillStyle = bgGradient;
       ctx.fillRect(0, 0, width, height);
 
+      // HOVER EFFECT: Background Tint
+      if (hoverDirection) {
+        ctx.save();
+        const tintColor = hoverDirection === 'up'
+          ? "rgba(16, 185, 129, 0.15)" // Emerald-500 @ 15%
+          : "rgba(244, 63, 94, 0.15)"; // Rose-500 @ 15%
+
+        // Gradient from right to left
+        const tintGradient = ctx.createLinearGradient(width, 0, width - 400, 0);
+        tintGradient.addColorStop(0, tintColor);
+        tintGradient.addColorStop(1, "rgba(0,0,0,0)");
+
+        ctx.fillStyle = tintGradient;
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+      }
+
       // 2. Grid (Draw grid lines spanning chart area)
       ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
       ctx.lineWidth = 0.5;
@@ -550,24 +570,6 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
         ctx.lineTo(x, height - padding.bottom);
         ctx.stroke();
 
-        // Draw Time Label
-        // Calculate which candle index is at this X
-        // x = padding.left + pastWidth - (renderCandles.length - 1 - index) * candleFullWidth + scrollOffset
-        // Reversing the indexToX formula approx:
-        // distance from right = width - padding.right - x
-        // offset from right edge in pixels = distance + scrollOffset
-        // We can approximate by finding the closest candle to this X
-
-        // Simpler approach: Map 'i' 0..N directly to timestamp range visible
-        // But since we scroll, we need actual timestamps.
-        // Let's use the candle nearest to this X.
-
-        // Invert indexToX logic:
-        // x = padding.left + pastWidth - (count - 1 - index) * candleWidth + scroll
-        // x - scroll - padding.left - pastWidth = - (count - 1 - index) * candleWidth
-        // (x - scroll - padding.left - pastWidth) / -candleWidth = count - 1 - index
-        // index = (count - 1) + (x - scroll - padding.left - pastWidth) / candleWidth
-
         const approxIndex = Math.round(
           (renderCandles.length - 1) +
           (x - scrollOffsetRef.current - (padding.left + pastWidth)) / candleFullWidth
@@ -575,12 +577,235 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
 
         if (renderCandles[approxIndex]) {
           const d = new Date(renderCandles[approxIndex].timestamp);
-          const timeStr = `${d.getHours().toString().padStart(2, 0)}:${d.getMinutes().toString().padStart(2, 0)}`;
+          const timeStr = (['5s', '15s', '30s'].includes(timeframe))
+            ? d.toLocaleTimeString('en-GB', { hour12: false })
+            : `${d.getHours().toString().padStart(2, 0)}:${d.getMinutes().toString().padStart(2, 0)}`;
+          ctx.fillText(timeStr, x, height - padding.bottom + 20);
+        } else if (renderCandles.length > 0 && approxIndex > renderCandles.length - 1) {
+          // Future Time Labels (Projected)
+          const lastCandle = renderCandles[renderCandles.length - 1];
+          const lastTs = lastCandle.timestamp.getTime();
+          const duration = getTimeframeDuration(timeframe || '5s');
+          const diff = approxIndex - (renderCandles.length - 1);
+          const futureTs = lastTs + (diff * duration);
+
+          const d = new Date(futureTs);
+          const timeStr = (['5s', '15s', '30s'].includes(timeframe))
+            ? d.toLocaleTimeString('en-GB', { hour12: false })
+            : `${d.getHours().toString().padStart(2, 0)}:${d.getMinutes().toString().padStart(2, 0)}`;
           ctx.fillText(timeStr, x, height - padding.bottom + 20);
         }
       }
 
-      // 3. Draw candles (The main content)
+      // 2.5 FUTURE LINES (Expiry & Next Candle - User Request)
+      if (renderCandles.length > 0) {
+        const lastCandle = renderCandles[renderCandles.length - 1];
+        const lastTs = lastCandle.timestamp.getTime();
+        const duration = getTimeframeDuration(timeframe || '5s');
+        // Current candle ends at start + duration
+        const currentExpiryTs = lastTs + duration;
+        const nextExpiryTs = currentExpiryTs + duration; // Red line is next boundary
+
+        // Helper to get X from TS
+        // We calculate Pixels per Millisecond to project time forward accurately.
+        const pixelsPerMs = candleFullWidth / duration;
+
+        // Active Candle (Last one)
+        const activeCandleX = indexToX(renderCandles.length - 1);
+        // lastTs is START of active candle
+        const xOfLastTs = activeCandleX - (candleFullWidth * 0.5); // Start of candle X
+
+        const now = Date.now() + (clockOffsetRef.current || 0);
+
+        // GREY LINE: Next Expiry Boundary
+        // FIXED CYCLE: Always 30s. This ensures Red Line (Grey + 30s) always matches UserExpiry (Grey + 30s).
+        // Before: Math.max(30000, duration) caused 1m chart to shift Red Line by -30s.
+        const expiryCycle = 30000;
+
+
+        // VISUAL GAP CHECK REMOVED: 
+        // We no longer force a Minimum Pixel Gap (e.g. 80px), because on higher timeframes (1m+), 
+        // 80px might represent 5+ minutes, which broke the logic.
+        // We now respect the logical expiry cycle (Duration max 30s).
+
+
+        let expiryTs;
+        const userExpiry = userSelectedExpiryRef.current;
+
+        // 1. ACTIVE TRADES OVERRIDE (Highest Priority)
+        // If there are active trades, we MUST align the Red Line to the trade's expiry
+        // to prevent the view from shifting while the trade is live.
+        let activeTradeExpiryTs = null;
+
+        if (activeTrades && activeTrades.length > 0) {
+          // FORCE TYPE SAFETY & RELAXED FILTER
+          // AND ISOLATION FIX: Only process trades for CURRENT ASSET
+          // DEBUG: Log filtering
+          // console.log("Debugging Asset Filter:", { userSelectedAsset, activeTradesCount: activeTrades.length });
+
+          const normalize = (s) => String(s || "").trim().toUpperCase();
+          const target = normalize(userSelectedAsset);
+
+          const currentAssetTrades = activeTrades.filter(t => {
+            const tSym = normalize(t.symbol || t.asset);
+            const match = tSym === target;
+            // if (!match) console.log(`Skipping trade ${t.id} (${tSym}) != ${target}`);
+            return match;
+          });
+
+          const safeTrades = currentAssetTrades.map(t => {
+            let safeExpiry;
+            if (t.expiryTime instanceof Date) safeExpiry = t.expiryTime.getTime();
+            else if (typeof t.expiryTime === 'string') safeExpiry = new Date(t.expiryTime).getTime();
+            else if (typeof t.expiryTime === 'number') safeExpiry = t.expiryTime;
+            else safeExpiry = 0;
+            return { ...t, expiryTimeMs: safeExpiry };
+          });
+
+          // Filter out trades that expired > 3s ago
+          const BUFFER_MS = 3000;
+          const futureTrades = safeTrades.filter(t => t.expiryTimeMs > (now - BUFFER_MS));
+
+          if (futureTrades.length > 0) {
+            // Find earliest future trade
+            const earliestTrade = futureTrades.sort((a, b) => a.expiryTimeMs - b.expiryTimeMs)[0];
+
+            // We want the RED LINE to be at `earliestTrade.expiryTimeMs`.
+            // Our drawing logic assumes Red = Grey + 30s.
+            // So Grey (expiryTs) must be TradeExpiry - 30s.
+            activeTradeExpiryTs = earliestTrade.expiryTimeMs - 30000;
+          }
+        }
+
+        if (activeTradeExpiryTs !== null) {
+          // Case A: Active Trade determines view
+          expiryTs = activeTradeExpiryTs;
+        } else if (userExpiry && userExpiry > now) {
+          // Case B: User/Parent selected expiry (Fixed Mode)
+          // Default logic: Grey = UserExpiry - Cycle
+          expiryTs = userExpiry - expiryCycle;
+        } else {
+          // Case C: Auto Mode (Next 30s/60s interval)
+          // We allow it to count down fully to 0 before switching
+          const standardExpiryTs = Math.ceil(now / expiryCycle) * expiryCycle;
+          expiryTs = standardExpiryTs;
+        }
+
+        const greyLineX = xOfLastTs + (expiryTs - lastTs) * pixelsPerMs;
+
+
+        // RED LINE FIX:
+        // 1. Position: STRICTLY 30 seconds after Grey Line (Purchase Deadline).
+        // 2. Timer: STRICTLY (GreyTimer + 30s).
+        // 3. Visibility: Timer text only shows if (activeTrades > 0).
+
+        const FIXED_RED_GAP = 30000; // 30 seconds
+
+        // RED LINE: Exactly 30s after Grey Line
+        redLineX = greyLineX + (FIXED_RED_GAP * pixelsPerMs);
+
+        const msRemaining = Math.max(0, expiryTs - now);
+        const secondsRemaining = Math.ceil(msRemaining / 1000);
+
+        // Draw Grey Line (Only if future)
+        // User Request Update: "hide it qwhen the gery line timer gets 00 not when the trde has make"
+        // So we REMOVE the !isActiveTradeView check. 
+        // It stays visible until expiryTs <= now (Timer 00).
+
+        // Define badgeY here so it's available for both Grey and Red lines
+        const badgeY = padding.top + 60;
+
+        if (expiryTs > now) {
+          ctx.beginPath();
+          ctx.strokeStyle = "rgba(156, 163, 175, 0.5)"; // Gray-400 with 50% opacity
+          ctx.lineWidth = 1;
+          ctx.moveTo(greyLineX, padding.top + 40);
+          ctx.lineTo(greyLineX, height - padding.bottom);
+          ctx.stroke();
+
+          // Grey Badge (Seconds)
+          ctx.save();
+          ctx.fillStyle = "rgba(31, 41, 55, 0.8)"; // Dark background with opacity
+          ctx.strokeStyle = "rgba(156, 163, 175, 0.8)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(greyLineX, badgeY, 14, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#FFFFFF";
+          ctx.font = "bold 11px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`:${secondsRemaining.toString().padStart(2, '0')}`, greyLineX, badgeY);
+
+          // "Time remaining" vertical text
+          ctx.save();
+          ctx.translate(greyLineX + 4, badgeY + 25);
+          ctx.rotate(Math.PI / 2); // Vertical text
+          ctx.font = "10px sans-serif";
+          ctx.fillStyle = "rgba(156, 163, 175, 0.8)";
+          ctx.textAlign = "left"; // FIX: Prevent centering overlap
+          ctx.fillText("Time remaining", 0, 0);
+          ctx.restore();
+          ctx.restore();
+        }
+
+        // Draw Red Line (Next Boundary)
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(244, 63, 94, 0.7)"; // Rose-500 with 70% opacity
+        ctx.lineWidth = 1;
+        ctx.moveTo(redLineX, padding.top + 40);
+        ctx.lineTo(redLineX, height - padding.bottom);
+        ctx.stroke();
+
+        // Red Badge (Timer)
+        // VISIBILITY FIX: Only show Badge AND Text if there are Active Trades
+        // RED BADGE IS ALWAYS VISIBLE (User Request)
+        ctx.save();
+        ctx.fillStyle = "rgba(244, 63, 94, 0.9)"; // Red bg with slight opacity
+        ctx.strokeStyle = "#FFFFFF"; // White border
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(redLineX, badgeY, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Red Line Timer Text
+        // VISIBILITY LOGIC: Only show if there are Active Trades
+        if (activeTrades && activeTrades.length > 0) {
+          // Red Line Timer Text
+          // LOGIC UPDATE: Use precise Red Line Remaining time.
+          // Remove "1m" cap to avoid "stuck" behavior. 
+          // Count down universally.
+
+          const redLineTs = expiryTs + FIXED_RED_GAP;
+          const msToRed = Math.max(0, redLineTs - now);
+          const redLineSecondsTotal = Math.ceil(msToRed / 1000);
+
+          let displayText;
+
+          if (redLineSecondsTotal >= 60) {
+            const m = Math.floor(redLineSecondsTotal / 60);
+            const s = redLineSecondsTotal % 60;
+            displayText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+          } else {
+            displayText = `:${redLineSecondsTotal.toString().padStart(2, '0')}`;
+          }
+
+          ctx.fillStyle = "#FFFFFF";
+          // Reduce font slightly if showing "MM:SS" to fit in circle
+          ctx.font = redLineSecondsTotal >= 60 ? "bold 9px sans-serif" : "bold 11px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(displayText, redLineX, badgeY);
+
+
+        }
+        ctx.restore();
+        ctx.restore();
+
+      }
       const wickWidth = (isPortraitMobile || isLandscapeMobile) ? 2.0 : 1.5;
 
       // HOVER DETECTION FOR TOOLTIP (Restored)
@@ -625,7 +850,19 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       if (chartType === 'line' || chartType === 'mountain') {
         ctx.beginPath();
         ctx.lineWidth = 2;
-        ctx.strokeStyle = "#18D67D"; // Main Line Color (Greenish/Theme)
+        ctx.lineWidth = 2;
+        // COLOR: Dynamic based on hoverDirection or Default Theme
+        const lineColor = hoverDirection === 'up' ? '#10B981' : hoverDirection === 'down' ? '#F43F5E' : "#18D67D"; // Emerald / Rose / Greenish
+        ctx.strokeStyle = lineColor;
+
+        // GLOW EFFECT (Requested)
+        if (hoverDirection) {
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = lineColor;
+        } else {
+          ctx.shadowBlur = 0;
+          ctx.shadowColor = "transparent";
+        }
 
         let firstPoint = true;
         let startX = 0;
@@ -687,7 +924,6 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
           let { open, close, high, low, timestamp } = candle;
 
           // Adjust active candle visual if needed (mostly for standard candles, HA pre-calc handles it)
-          // Adjust active candle visual if needed (mostly for standard candles, HA pre-calc handles it)
           if (chartType === 'candle' && index === drawCandles.length - 1) {
             const ts = candle.timestamp ? candle.timestamp.getTime() : 0;
             let visual = activeCandleVisualRef.current;
@@ -742,6 +978,7 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
             }
           }
 
+          ctx.setLineDash([]);
           ctx.strokeStyle = color;
           ctx.fillStyle = color;
           ctx.lineWidth = wickWidth;
@@ -844,13 +1081,39 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       const lineMidX = padding.left + pastWidth;
       const lineEndX = width - padding.right + 10;
 
-      const neutralPriceColor = "#FFD335";
+      // COLOR: Dynamic based on hoverDirection or Default Gold
+      const activePriceColor = hoverDirection === 'up' ? '#10B981' : hoverDirection === 'down' ? '#F43F5E' : "#FFD335";
+
+      // --- DIRECTIONAL GLOW AREA (User Request) ---
+      if (hoverDirection && !isNaN(renderPriceRef.current)) {
+        const glowHeight = 250; // Extend glow area significantly
+        const startY = priceY;
+        const endY = hoverDirection === 'up' ? startY - glowHeight : startY + glowHeight;
+
+        const areaGradient = ctx.createLinearGradient(0, startY, 0, endY);
+        if (hoverDirection === 'up') {
+          areaGradient.addColorStop(0, "rgba(16, 185, 129, 0.2)"); // Green start
+          areaGradient.addColorStop(1, "rgba(16, 185, 129, 0)");   // Fade out
+        } else {
+          areaGradient.addColorStop(0, "rgba(244, 63, 94, 0.2)");   // Red start
+          areaGradient.addColorStop(1, "rgba(244, 63, 94, 0)");     // Fade out
+        }
+
+        ctx.save();
+        ctx.fillStyle = areaGradient;
+        ctx.beginPath();
+        // Draw rect from price line in the direction of trade
+        const rectY = hoverDirection === 'up' ? startY - glowHeight : startY;
+        ctx.fillRect(padding.left, rectY, width - padding.left - padding.right, glowHeight);
+        ctx.restore();
+      }
+      // ---------------------------------------------
 
       ctx.save();
-      ctx.strokeStyle = neutralPriceColor;
+      ctx.strokeStyle = activePriceColor;
       ctx.lineWidth = 2;
-      ctx.shadowColor = neutralPriceColor;
-      ctx.shadowBlur = 15;
+      ctx.shadowColor = activePriceColor;
+      ctx.shadowBlur = hoverDirection ? 20 : 10; // Intense glow on hover
 
       // Dashed segment
       ctx.setLineDash([6, 4]);
@@ -877,12 +1140,12 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
       const labelX = width - padding.right + (padding.right - labelWidth) / 2;
       const labelY = priceY - labelHeight / 2;
 
-      const labelBgColor = "#2C2F36";
+      const labelBgColor = hoverDirection === 'up' ? '#064E3B' : hoverDirection === 'down' ? '#881337' : "#2C2F36"; // Dark Green / Dark Red / Dark Gray
 
       // Draw Price Label Box
       ctx.save();
       ctx.fillStyle = labelBgColor;
-      ctx.shadowColor = neutralPriceColor;
+      ctx.shadowColor = activePriceColor;
       ctx.shadowBlur = 14;
       ctx.beginPath();
       ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 4);
@@ -899,61 +1162,224 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
         labelY + labelHeight / 2 + 5
       );
 
-      // 8. Timeframe label REMOVED as per user request (logic kept for structure)
-      // ctx.fillStyle = "rgba(160, 170, 200, 0.9)";
-      // ctx.font = "bold 14px sans-serif";
-      // ctx.fillText(...)
-
-      // 9. Aesthetic Clean-up: Clear the right-top area
-      // Reduced height (padding.top - 15) to avoid covering the top-most price label at y=50
       ctx.fillStyle = bgGradient;
       ctx.fillRect(width - padding.right - 2, 0, padding.right + 2, padding.top - 15);
 
       // 10. Draw Active Trades
-      if (activeTrades && activeTrades.length > 0) {
+      if (activeTrades && activeTrades.length > 0 && renderCandles.length > 0) {
+
+        // Hoist pixelsPerMs calculation if not already available
+        const duration = getTimeframeDuration(timeframe || '5s');
+        const pixelsPerMs = candleFullWidth / duration;
+
+        // Last Candle Reference
+        const activeCandleX = indexToX(renderCandles.length - 1);
+        const lastCandle = renderCandles[renderCandles.length - 1];
+        const xOfLastTs = activeCandleX - (candleFullWidth * 0.5);
+        const lastTs = lastCandle.timestamp.getTime();
+
+        // Deduplication: track drawn expiry lines to avoid clutter
+        // Start with redLineX (Main Expiry) as already drawn
+        const drawnExpiries = redLineX !== null ? [redLineX] : [];
+
         activeTrades.forEach(trade => {
           const y = priceToY(trade.entryPrice);
           const isUp = trade.direction === 'up';
           const color = isUp ? "#10B981" : "#F43F5E"; // Emerald / Rose
 
-          // Draw horizontal line
-          ctx.save();
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([5, 3]);
+          let expiryX = width - padding.right;
+          let entryX = padding.left;
 
-          ctx.beginPath();
-          ctx.moveTo(padding.left, y);
-          ctx.lineTo(width - padding.right, y);
-          ctx.stroke();
+          if (trade.expiryTime) {
+            const timeDiff = trade.expiryTime - lastTs;
+            expiryX = xOfLastTs + (timeDiff * pixelsPerMs);
 
-          // Draw Direction Marker
-          const markerX = width - padding.right + 10;
-          const markerSize = 14;
+            // Check if we need to draw a dedicated line
+            // Only draw if NO existing line is close enough (within 3px)
+            const isLineAlreadyDrawn = drawnExpiries.some(x => Math.abs(x - expiryX) < 3);
 
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          if (isUp) {
-            ctx.moveTo(markerX, y + markerSize / 2);
-            ctx.lineTo(markerX + markerSize, y + markerSize / 2);
-            ctx.lineTo(markerX + markerSize / 2, y - markerSize / 2);
-          } else {
-            ctx.moveTo(markerX, y - markerSize / 2);
-            ctx.lineTo(markerX + markerSize, y - markerSize / 2);
-            ctx.lineTo(markerX + markerSize / 2, y + markerSize / 2);
+            if (!isLineAlreadyDrawn && expiryX > 0 && expiryX < width) {
+              // Determine Line Style for "Trade Specific" Expiry
+              // Use Dashed Line to distinguish from Main Expiry
+              ctx.save();
+              ctx.beginPath();
+              ctx.strokeStyle = "#EF4444"; // Red-500
+              ctx.lineWidth = 1;
+              ctx.setLineDash([4, 4]); // DASHED LINE
+              ctx.moveTo(expiryX, padding.top); // Full height
+              ctx.lineTo(expiryX, height - padding.bottom);
+              ctx.stroke();
+
+              // Optional: Small dot or cap at the top instead of full badge?
+              // Just a small circle to tidy the end
+              ctx.beginPath();
+              ctx.fillStyle = "#EF4444";
+              ctx.arc(expiryX, padding.top, 3, 0, Math.PI * 2);
+              ctx.fill();
+
+              ctx.restore();
+
+              // Mark this X as drawn
+              drawnExpiries.push(expiryX);
+            }
           }
+
+          if (trade.entryTime) {
+            // Project entry backwards relative to current time
+            const timeDiff = trade.entryTime - lastTs;
+            entryX = xOfLastTs + (timeDiff * pixelsPerMs);
+          } else {
+            entryX = xOfLastTs;
+          }
+
+          // 1. Draw Investment Tag (At Entry Point)
+          // Tag Shape: Rect on Left, Triangle pointing to Entry X
+          const tagW = 45;
+          const tagH = 20;
+          const tagX = entryX - tagW - 6; // Shift left of entry
+          const tagY = y - tagH / 2;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.fillStyle = "#E5E7EB"; // Light Gray tag background (like image)
+
+          // Draw Tag Body
+          ctx.roundRect(tagX, tagY, tagW, tagH, 3);
+          ctx.fill();
+
+          // Draw Triangle Tip pointing to Entry Line
+          ctx.beginPath();
+          ctx.moveTo(tagX + tagW, y - 4);
+          ctx.lineTo(tagX + tagW + 6, y); // Tip
+          ctx.lineTo(tagX + tagW, y + 4);
           ctx.closePath();
           ctx.fill();
 
-          // Entry point dot
-          const dotX = width - padding.right;
-          ctx.beginPath();
-          ctx.arc(dotX, y, 3, 0, Math.PI * 2);
+          // Text: Investment Amount (e.g. 100 ₹)
+          ctx.fillStyle = "#111827"; // Dark text
+          ctx.font = "bold 11px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          // Mock data: assume trade.amount or default 100
+          const amountText = (trade.amount || "100") + " ₹";
+          ctx.fillText(amountText, tagX + tagW / 2, y + 1);
+
+          // Draw Dot at Entry
           ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(entryX, y, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          // 2. Draw Connection Line
+          ctx.save();
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([]);
+
+          ctx.beginPath();
+          ctx.moveTo(entryX, y);
+          ctx.lineTo(expiryX, y);
+          ctx.stroke();
+
+          // 3. Draw End Marker (Small Triangle at Expiry)
+          const arrowSize = 4;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          // Pointing UP
+          ctx.moveTo(expiryX, y - arrowSize);
+          ctx.lineTo(expiryX - arrowSize, y + arrowSize);
+          ctx.lineTo(expiryX + arrowSize, y + arrowSize);
           ctx.fill();
 
           ctx.restore();
         });
+      }
+
+
+
+      // 11. Phantom Arrow (Hover Preview)
+      if (hoverDirection && !isNaN(renderPriceRef.current)) {
+        const y = priceToY(renderPriceRef.current);
+        const isUp = hoverDirection === 'up';
+        const color = isUp ? "#10B981" : "#F43F5E";
+
+        // Use same drawing logic as Active Trade but possibly more distinct or pulsing
+        const arrowOffset = 180;
+        const arrowX = width - padding.right - arrowOffset;
+        const arrowSize = 65; // Chunky size
+        const verticalOffset = 45;
+        const arrowY = isUp ? (y - verticalOffset) : (y + verticalOffset);
+
+        ctx.save();
+        ctx.translate(arrowX, arrowY);
+
+        const tiltAngle = 35 * (Math.PI / 180);
+        // FIX: Up points N-E (+35). Down points S-E (+145 = 180-35).
+        const rotation = isUp ? tiltAngle : (Math.PI - tiltAngle);
+        ctx.rotate(rotation);
+
+        // REFERENCE STYLE: Chunky, Solid, 3D-like (Binomo Style)
+        // Create 3D Gradient (Top-Down relative to arrow)
+        const gradient = ctx.createLinearGradient(0, -arrowSize / 2, 0, arrowSize / 2);
+        if (isUp) {
+          gradient.addColorStop(0, "#34D399"); // Highlight (Top)
+          gradient.addColorStop(0.5, "#10B981"); // Body
+          gradient.addColorStop(1, "#047857"); // Shadow (Bottom)
+        } else {
+          gradient.addColorStop(0, "#FB7185"); // Highlight
+          gradient.addColorStop(0.5, "#F43F5E"); // Body
+          gradient.addColorStop(1, "#BE123C"); // Shadow
+        }
+
+        ctx.fillStyle = gradient;
+        // Add a hard drop shadow for pop
+        ctx.shadowColor = "rgba(0,0,0,0.5)";
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetY = 4;
+
+        ctx.beginPath();
+        // Chunky Arrow Shape (Standard wide arrow)
+        const halfShaftWidth = arrowSize * 0.22;
+        const headHalfWidth = arrowSize * 0.45;
+        const tipY = -arrowSize * 0.55;
+        const headBaseY = -arrowSize * 0.1;
+        const shaftBaseY = arrowSize * 0.5;
+
+        ctx.moveTo(0, tipY); // Tip
+        ctx.lineTo(headHalfWidth, headBaseY); // Right Head Corner
+        ctx.lineTo(halfShaftWidth, headBaseY); // Right Shaft Connection
+        ctx.lineTo(halfShaftWidth, shaftBaseY); // Right Shaft Base
+        ctx.lineTo(-halfShaftWidth, shaftBaseY); // Left Shaft Base
+        ctx.lineTo(-halfShaftWidth, headBaseY); // Left Shaft Connection
+        ctx.lineTo(-headHalfWidth, headBaseY); // Left Head Corner
+
+        ctx.closePath();
+
+        // Rounded corners effect
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = isUp ? "#065F46" : "#881337"; // Dark border for definition
+        ctx.stroke();
+        ctx.fill();
+
+        // Inner Highlight (Glassy Shine - Top Half)
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        const shineGrad = ctx.createLinearGradient(0, -arrowSize * 0.5, 0, 0);
+        shineGrad.addColorStop(0, "rgba(255,255,255,0.4)");
+        shineGrad.addColorStop(1, "rgba(255,255,255,0)");
+
+        ctx.fillStyle = shineGrad;
+        ctx.beginPath();
+        ctx.moveTo(0, tipY + 4);
+        ctx.lineTo(headHalfWidth - 6, headBaseY - 3);
+        ctx.lineTo(-headHalfWidth + 6, headBaseY - 3);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+        ctx.restore();
       }
 
       // --- TIMER (Countdown) ---
@@ -1056,7 +1482,7 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [currentPrice, dimensions, timeframe, direction]);
+  }, [currentPrice, dimensions, timeframe, direction, activeTrades]);
 
   const handlePointerMove = (event) => {
     if (!containerRef.current || !canvasRef.current || !layoutRef.current) return;

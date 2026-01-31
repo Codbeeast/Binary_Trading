@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import TradingChart from "@/components/TradingChart";
@@ -12,14 +12,24 @@ import TimeSelector from "@/components/TimeSelector";
 import RecentTrades from "@/components/RecentTrades";
 import AssetSelector from "@/components/AssetSelector";
 import ChartTypeModal from "@/components/ChartTypeModal"; // Import Modal
+// import LiveLeaderboard from "@/components/tournaments/LiveLeaderboard"; // Removed
 import UserMenu from "@/components/UserMenu";
-import { User, Menu, SlidersHorizontal, ArrowRightSquare, X, CandlestickChart } from "lucide-react"; // Import Icon
+import { User, Menu, SlidersHorizontal, ArrowRightSquare, X, CandlestickChart, Trophy, Plus, Minus } from "lucide-react"; // Import Icon
 
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter(); // Restore router
+  const searchParams = useSearchParams();
+  // const tournamentId = searchParams.get('tournamentId'); // Removed
+
   const [userId, setUserId] = useState(null); // Restore userId
   const [isLoading, setIsLoading] = useState(true); // Restore isLoading
+
+  // Tournament State - ALWAYS FALSE for Main Chart
+  const isTournamentMode = false;
+  const tournamentId = null;
+  const [tournamentDetails, setTournamentDetails] = useState(null); // Keep merely to avoid breaking legacy refs if any, or remove
+  const [tournamentBalance, setTournamentBalance] = useState(0);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -27,9 +37,13 @@ export default function Home() {
     }
   }, [session]);
 
+
+
   // Protect Route
   useEffect(() => {
+    console.log("🔐 Auth Status:", status, "Session:", session);
     if (status === "unauthenticated") {
+      console.log("🚨 Redirecting to login due to unauthenticated status");
       router.push("/login"); // Now router is defined
     } else if (status === "authenticated" && session?.user) {
       setUserId(session.user.id);
@@ -57,6 +71,55 @@ export default function Home() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('5s');
   const [selectedAsset, setSelectedAsset] = useState('BTCUSDT');
   const [chartType, setChartType] = useState('candle'); // Chart Type State
+  const [hoverDirection, setHoverDirection] = useState(null); // New State for Hover Effects
+
+  // Expiry State (Absolute Time)
+  const [expiryTimestamp, setExpiryTimestamp] = useState(null);
+
+  // Initialize expiry and Auto-Rollover
+  useEffect(() => {
+    // Initial Set
+    const setInitialExpiry = () => {
+      const now = Date.now();
+      // Calculate next full minute
+      const nextMinute = Math.ceil(now / 60000) * 60000;
+      // Calculate remaining time
+      const diff = nextMinute - now;
+
+      // FIX: If we are in the "Dead Zone" (< 30s), push to next minute loop.
+      // Otherwise (>= 30s), stay in current minute loop.
+      // This prevents "Jumping" to 80s when user enters at XX:20 (40s remaining).
+      let target;
+      if (diff < 30000) {
+        target = nextMinute + 60000;
+      } else {
+        target = nextMinute;
+      }
+
+      setExpiryTimestamp(target);
+      return target;
+    };
+
+    let currentExpiry = setInitialExpiry();
+
+    // Auto-update Interval (Check every 1s)
+    const interval = setInterval(() => {
+      const now = Date.now();
+      // Buffer: Update at 30s mark (Red Line = 30s remaining, Grey Line = 0s).
+      // Since TradingChart.js now enforces a 30s difference (Grey = Red - 30s),
+      // checking for < 30000 means we rollover EXACTLY when Grey hits 0.
+      // Resetting adds 60s -> Red becomes 90s -> Grey becomes 60s.
+      // This gives the perfect 60..0 countdown user requested.
+      if (currentExpiry && (currentExpiry - now) < 30000) {
+        // Increment by 1 minute
+        currentExpiry += 60000;
+        setExpiryTimestamp(currentExpiry);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const selectedAssetRef = useRef('BTCUSDT');
 
   // -- PERSISTENCE LOGIC START --
@@ -130,6 +193,7 @@ export default function Home() {
 
   const tickCountRef = useRef(0);
   const priceHistoryRef = useRef([]);
+  const activeTradesRef = useRef([]); // Sync Ref for socket callbacks
 
   // Derived state: Get candles for the currently selected timeframe
   const candles = candlesMap[selectedTimeframe] || [];
@@ -138,82 +202,74 @@ export default function Home() {
     if (activeTrades.length === 0) return;
 
     const interval = setInterval(() => {
-      // Check for expired trades using the current scope variables (fresh due to dependency array)
-      const now = Date.now();
-      const expired = activeTrades.filter(trade => now >= trade.expiryTime);
-
-      if (expired.length === 0) return;
-
-      // 1. Update Active Trades (Remove expired)
-      setActiveTrades(prev => prev.filter(trade => !expired.find(e => e.id === trade.id)));
-
-      // 2. Process Results (Side effects)
-      expired.forEach(trade => {
-        const exitPrice = currentPrice;
-        const isProfit = (trade.direction === 'up' && exitPrice > trade.entryPrice) ||
-          (trade.direction === 'down' && exitPrice < trade.entryPrice);
-
-        const result = {
-          id: trade.id,
-          result: isProfit ? 'PROFIT' : 'LOSS',
-          amount: isProfit ? trade.amount * 1.82 : 0,
-          investment: trade.amount, // Pass original investment
-          entryPrice: trade.entryPrice,
-          exitPrice: exitPrice,
-          entryPrice: trade.entryPrice,
-          exitPrice: exitPrice,
-          direction: trade.direction
-        };
-
-        // Add to popup results (avoid duplicates)
-        setTradeResults(prev => {
-          if (prev.some(r => r.id === result.id)) return prev;
-          return [...prev, result];
-        });
-
-        // Add to history (avoid duplicates)
-        setTradeHistory(prev => {
-          if (prev.some(item => item.id === trade.id)) return prev;
-          return [{
-            ...result,
-            amount: trade.amount,
-            payout: isProfit ? trade.amount * 1.82 : 0,
-            duration: trade.duration,
-            expiryTime: trade.expiryTime,
-            asset: trade.asset || selectedAsset // Persist asset name
-          }, ...prev];
-        });
-
-        // Schedule removal of popup
-        setTimeout(() => {
-          setTradeResults(prev => prev.filter(r => r.id !== trade.id));
-        }, 4000);
-      });
-
-    }, 50);
+      // Just force a re-render for timers
+      setActiveTrades(prev => [...prev]);
+    }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeTrades, currentPrice]);
+  }, []);
+
+  // Sync activeTradesRef for synchronous access
+  useEffect(() => {
+    activeTradesRef.current = activeTrades;
+  }, [activeTrades]);
 
   const [isProcessingTrade, setIsProcessingTrade] = useState(false);
 
   const handleTrade = (direction) => {
     if (isProcessingTrade) return;
+
+    // Balance Check
+    const currentBalance = isTournamentMode ? tournamentBalance : demoBalance;
+    if (currentBalance < tradeAmount) {
+      alert("Insufficient balance!");
+      return;
+    }
+
     setIsProcessingTrade(true);
 
     // Re-enable after delay
     setTimeout(() => setIsProcessingTrade(false), 1000);
 
-    const durationSeconds = tradeDuration;
+    // Use Absolute Expiry (Red Line)
+    // GROUPING LOGIC: If there is an active trade for this asset, inherit its expiry.
+    // This allows "Stacking" trades on the same candle.
+    let targetExpiry = expiryTimestamp || (Date.now() + 60000);
+
+    const activeAssetTrades = activeTrades.filter(t =>
+      (t.symbol === selectedAsset || t.asset === selectedAsset) &&
+      (new Date(t.expiryTime).getTime() > Date.now())
+    );
+
+    if (activeAssetTrades.length > 0) {
+      // Find the trade that is "Holding" the chart view (Earliest valid Expiry)
+      // Usually, we want to join the CURRENT cycle.
+      const earliestTrade = activeAssetTrades.sort((a, b) =>
+        new Date(a.expiryTime).getTime() - new Date(b.expiryTime).getTime()
+      )[0];
+
+      const existingExpiry = new Date(earliestTrade.expiryTime).getTime();
+
+      // Only join if it's not about to expire immediately (e.g. > 5s left)
+      // Otherwise, the user might accidentally bet on a 1s candle.
+      if (existingExpiry - Date.now() > 5000) {
+        targetExpiry = existingExpiry;
+      }
+    }
+
+    const calculatedDuration = Math.round((targetExpiry - Date.now()) / 1000);
+
     const newTrade = {
-      id: Date.now() + Math.random(),
+      id: String(Date.now() + Math.random()),
       direction,
       amount: tradeAmount,
       entryPrice: currentPrice,
       startTime: Date.now(),
-      expiryTime: Date.now() + (durationSeconds * 1000),
-      duration: durationSeconds,
-      asset: selectedAsset // Store the asset symbol with the trade
+      expiryTime: targetExpiry,
+      duration: calculatedDuration,
+      asset: selectedAsset,
+      symbol: selectedAsset, // Explicitly set symbol for consistent filtering
+      tournamentId: isTournamentMode ? tournamentId : null
     };
 
     setActiveTrades(prev => [...prev, newTrade]);
@@ -227,11 +283,17 @@ export default function Home() {
         userId: userId, // Send persistent ID
         symbol: selectedAsset, // FIX: Send the selected asset symbol
         clientTradeId: newTrade.id, // Send unique ID for deduplication
-        duration: durationSeconds // Explicitly send duration
+        duration: calculatedDuration, // Send calculated duration
+        expiryTime: targetExpiry, // Send Explicit Expiry
+        tournamentId: isTournamentMode ? tournamentId : null // Send Tournament ID
       });
 
-      // Deduct from balance immediately
-      setDemoBalance(prev => Math.max(0, prev - tradeAmount));
+      // Deduct from balance immediately (Optimistic Update)
+      if (isTournamentMode) {
+        setTournamentBalance(prev => Math.max(0, prev - tradeAmount));
+      } else {
+        setDemoBalance(prev => Math.max(0, prev - tradeAmount));
+      }
     }
   };
 
@@ -254,6 +316,10 @@ export default function Home() {
     }
   };
 
+  // Leaderboard State
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState([]);
+
 
 
 
@@ -265,9 +331,11 @@ export default function Home() {
       reconnectionAttempts: 5,
     });
 
-    // Reset candles map when asset changes to prevent showing wrong data
+    // Reset candles map and trades when asset or mode changes
     setCandlesMap({});
     setTicks([]);
+    setActiveTrades([]); // Clear previous mode's active trades
+    setTradeHistory([]); // Clear previous mode's history
 
     socketInstance.on('connect', () => {
       // console.log('Connected to socket', socketInstance.id);
@@ -278,22 +346,41 @@ export default function Home() {
         socketInstance.emit('join_user', userId);
       }
 
+      // Join Tournament Room if in mode
+      if (tournamentId) {
+        socketInstance.emit('join_tournament', tournamentId);
+        setIsLeaderboardOpen(true); // Auto-open leaderboard on entry? Maybe
+      }
+
       // Subscribe to selected asset
       socketInstance.emit('subscribe', selectedAsset);
     });
 
+    // Handle Leaderboard Updates
+    socketInstance.on('leaderboard_update', (data) => {
+      setLeaderboardData(data);
+    });
+
     // Handle initial balance
     socketInstance.on('active_balance', (balance) => {
+      // Only update demo balance from this event
       setDemoBalance(balance);
     });
 
     // Handle real-time balance updates
     socketInstance.on('balance_update', (newBalance) => {
+      // Only update demo balance
       setDemoBalance(newBalance);
+    });
+
+    // Handle TOURNAMENT balance updates
+    socketInstance.on('tournament_balance_update', (newBalance) => {
+      setTournamentBalance(newBalance);
     });
 
     // Handle historical trades load - Split into Active and History
     socketInstance.on('user_trade_history', (history) => {
+      console.log(`📜 Received ${history.length} trades from server`);
       const now = Date.now();
       const active = [];
       const completed = [];
@@ -304,9 +391,24 @@ export default function Home() {
         const duration = trade.duration || 60;
         const expiryTime = trade.expiryTime ? new Date(trade.expiryTime).getTime() : (startTime + (duration * 1000));
 
+        // Filter by Tournament Mode
+        // If in tournament mode, only show trades for this tournament
+        // If in demo/regular mode, only show trades WITHOUT tournamentId
+        // console.log("Filtering Trade:", trade.tournamentId, "Current Mode TournId:", tournamentId);
+
+        const isCurrentTournamentTrade = isTournamentMode && trade.tournamentId === tournamentId;
+        const isRegularTrade = !isTournamentMode && !trade.tournamentId;
+
+        if (!isCurrentTournamentTrade && !isRegularTrade) {
+          return; // Skip this trade as it doesn't belong to current view
+        }
+
         // Check if trade is still valid and pending
-        if (trade.result === 'pending' && expiryTime > now) {
+        // RELAXED FILTER: Keep trades for 5s after expiry to allow UI animations/buffers to finish
+        // to prevent premature chart jumping.
+        if (trade.result === 'pending' && expiryTime > (now - 5000)) {
           active.push({
+
             id: trade.clientTradeId || trade._id,
             direction: trade.direction,
             amount: trade.amount,
@@ -315,6 +417,7 @@ export default function Home() {
             expiryTime: expiryTime,
             duration: duration,
             asset: trade.symbol,
+            tournamentId: trade.tournamentId,
             isSynced: true
           });
         } else {
@@ -331,6 +434,10 @@ export default function Home() {
           const newActive = active.filter(t => !currentIds.has(t.id));
           return [...prev, ...newActive];
         });
+      } else {
+        // If no active trades from server, but we have some locally? 
+        // Actually, we should probably trust the server or keep local ones if they are very recent.
+        // For now, let's just add new ones.
       }
     });
 
@@ -356,9 +463,52 @@ export default function Home() {
           expiryTime: new Date(trade.timestamp).getTime() + ((trade.duration || 60) * 1000), // Reconstruct expiry
           duration: trade.duration || 60,
           asset: trade.symbol,
+          symbol: trade.symbol, // Fix: Ensure symbol is set from backend
+          tournamentId: trade.tournamentId,
           isSynced: true // Debug flag
         }];
       });
+    });
+
+    // Handle Server-Side Trade Results (Authoritative)
+    socketInstance.on('trade_result', (data) => {
+      // 1. Find the active trade to get its original duration/timeframe
+      // Use REF to get synchronous state properly
+      const match = activeTradesRef.current.find(t => String(t.id) === String(data.clientTradeId) || String(t.id) === String(data.id));
+      const foundDuration = match ? match.duration : null;
+      let tradeDuration = foundDuration || data.duration || 60; // Fallback
+
+      // Remove from Active Trades
+      setActiveTrades(prev => prev.filter(t => String(t.id) !== String(data.clientTradeId) && String(t.id) !== String(data.id)));
+
+      // 2. Add to Results (Popup)
+      const resultItem = {
+        id: data.id || Date.now(),
+        result: data.result, // 'PROFIT' or 'LOSS'
+        amount: data.amount,
+        investment: data.investment,
+        asset: data.symbol, // Use server symbol
+        symbol: data.symbol,
+        entryPrice: data.entryPrice,
+        duration: tradeDuration,
+        // ... other fields if needed
+      };
+
+      setTradeResults(prev => {
+        if (prev.some(r => r.id === resultItem.id)) return prev;
+        return [...prev, resultItem];
+      });
+
+      // 3. Add to History
+      setTradeHistory(prev => {
+        if (prev.some(item => item.id === resultItem.id)) return prev;
+        return [resultItem, ...prev];
+      });
+
+      // Schedule popup removal
+      setTimeout(() => {
+        setTradeResults(prev => prev.filter(r => r.id !== resultItem.id));
+      }, 4000);
     });
 
     socketInstance.on('disconnect', () => {
@@ -483,7 +633,7 @@ export default function Home() {
       socketInstance.disconnect();
       clearInterval(statsInterval);
     };
-  }, [selectedAsset, userId]);
+  }, [selectedAsset, userId, isTournamentMode, tournamentId]); // Re-run if mode changes to filter trades
 
   if (status === "loading" || status === "unauthenticated") {
     return (
@@ -559,21 +709,41 @@ export default function Home() {
           <div className="flex items-center gap-3 lg:gap-4 shrink-0">
             {/* ... balance ... */}
             <div className="flex flex-col items-end">
-              <span className="text-[10px] lg:text-[11px] font-medium text-gray-400 uppercase tracking-wider">Demo account</span>
+              <span className={`text-[10px] lg:text-[11px] font-medium uppercase tracking-wider ${isTournamentMode ? 'text-emerald-400' : 'text-gray-400'}`}>
+                {isTournamentMode ? '🏆 Tournament Account' : 'Demo account'}
+              </span>
               <span className="font-bold text-sm lg:text-lg tabular-nums tracking-tight text-white shadow-black drop-shadow-sm">
-                ₹{demoBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₹{(isTournamentMode ? tournamentBalance : demoBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
 
             {/* Wallet / Deposit Button */}
-            <button className="h-9 w-9 lg:h-10 lg:w-auto lg:px-6 rounded-xl bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm shadow-[0_4px_14px_rgba(249,115,22,0.4)] transition-all active:scale-95 flex items-center justify-center">
-              <span className="hidden lg:inline">Deposit</span>
-              <span className="lg:hidden">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                  <path d="M2.25 2.25a.75.75 0 000 1.5h1.386c.17 0 .318.114.362.278l2.558 9.592a3.752 3.752 0 00-2.806 3.63c0 .414.336.75.75.75h15.75a.75.75 0 000-1.5H5.378A2.25 2.25 0 017.5 15h11.218a.75.75 0 00.674-.421 60.358 60.358 0 002.96-7.228.75.75 0 00-.525-.965A60.864 60.864 0 005.68 4.509l-.232-.867A1.875 1.875 0 003.636 2.25H2.25zM3.75 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM16.5 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" />
-                </svg>
-              </span>
-            </button>
+            {!isTournamentMode && (
+              <button className="h-9 w-9 lg:h-10 lg:w-auto lg:px-6 rounded-xl bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm shadow-[0_4px_14px_rgba(249,115,22,0.4)] transition-all active:scale-95 flex items-center justify-center">
+                <span className="hidden lg:inline">Deposit</span>
+                <span className="lg:hidden">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                    <path d="M2.25 2.25a.75.75 0 000 1.5h1.386c.17 0 .318.114.362.278l2.558 9.592a3.752 3.752 0 00-2.806 3.63c0 .414.336.75.75.75h15.75a.75.75 0 000-1.5H5.378A2.25 2.25 0 017.5 15h11.218a.75.75 0 00.674-.421 60.358 60.358 0 002.96-7.228.75.75 0 00-.525-.965A60.864 60.864 0 005.68 4.509l-.232-.867A1.875 1.875 0 003.636 2.25H2.25zM3.75 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM16.5 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" />
+                  </svg>
+                </span>
+              </button>
+            )}
+
+            {/* Exit Tournament Button (Only if in Tournament Mode) */}
+            {/* Exit Tournament Button (Only if in Tournament Mode) */}
+            {isTournamentMode && (
+              <button
+                onClick={() => {
+                  // Clear active session and exit
+                  localStorage.removeItem('activeTournamentId');
+                  router.push('/tournaments');
+                }}
+                className="h-9 lg:h-10 px-4 rounded-xl bg-[#2C303A] hover:bg-[#3C414D] text-white font-bold text-xs lg:text-sm flex items-center gap-2 transition-all"
+              >
+                <span className="hidden lg:inline">Exit Tournament</span>
+                <span className="lg:hidden">Exit</span>
+              </button>
+            )}
 
             {/* User Menu */}
             <UserMenu user={session?.user} />
@@ -589,11 +759,34 @@ export default function Home() {
           selectedType={chartType}
           onSelect={setChartType}
         />
+
+        {/* Live Leaderboard Overlay */}
+        {isTournamentMode && (
+          <LiveLeaderboard
+            isOpen={isLeaderboardOpen}
+            onClose={() => setIsLeaderboardOpen(false)}
+            leaderboard={leaderboardData}
+            currentUserId={userId}
+          />
+        )}
+
         {/* Chart Section */}
         <section className="flex-1 relative bg-[#0F1115] flex flex-col min-w-0 pl-1">
 
           {/* Chart Container */}
           <div className="flex-1 relative overflow-hidden">
+
+            {/* Tournament Leaderboard Toggle (Desktop/Mobile) */}
+            {isTournamentMode && (
+              <button
+                onClick={() => setIsLeaderboardOpen(!isLeaderboardOpen)}
+                className="absolute top-4 right-16 z-30 bg-[#1A1D24]/80 backdrop-blur border border-[#FCC419]/30 text-[#FCC419] p-2 rounded-xl hover:bg-[#FCC419]/10 transition-all shadow-lg active:scale-95 animate-in fade-in slide-in-from-top-4 duration-500"
+                title="Live Leaderboard"
+              >
+                <Trophy className="w-5 h-5" />
+              </button>
+            )}
+
             <TradingChart
               candles={candles}
               currentPrice={currentPrice}
@@ -601,10 +794,19 @@ export default function Home() {
               latestTick={latestTick}
               timeframe={selectedTimeframe}
               direction={marketState.direction}
-              activeTrades={activeTrades}
+              // ISOLATION FIX: Filter Active Trades at PARENT level.
+              // This guarantees the chart ONLY sees trades for the selected asset.
+              activeTrades={activeTrades.filter(t => {
+                const s1 = String(t.symbol || t.asset || "").trim().toUpperCase();
+                const s2 = String(selectedAsset || "").trim().toUpperCase();
+                return s1 === s2;
+              })}
               onCandlePersist={handleCandlePersist}
               key={selectedAsset}
               chartType={chartType}
+              hoverDirection={hoverDirection}
+              userSelectedExpiry={expiryTimestamp} // Pass controlled expiry
+              userSelectedAsset={selectedAsset}
             />
 
             {/* Mobile Floating Overlays */}
@@ -651,7 +853,7 @@ export default function Home() {
 
             {/* Active Trade Notifications */}
             <div className="absolute top-16 left-4 right-4 flex flex-col gap-2 pointer-events-none z-0">
-              {activeTrades.map(trade => {
+              {activeTrades.filter(trade => (trade.asset || trade.symbol) === selectedAsset).map(trade => {
                 const timeLeft = Math.max(0, Math.ceil((trade.expiryTime - Date.now()) / 1000));
                 if (timeLeft <= 0) return null;
                 return (
@@ -673,7 +875,7 @@ export default function Home() {
             </div>
 
             {/* Results Popup */}
-            {tradeResults.map(result => (
+            {tradeResults.filter(result => (result.asset || result.symbol) === selectedAsset).map(result => (
               <div key={result.id} className="absolute bottom-12 right-16 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div className={`
                         flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl shadow-2xl shadow-black/60 border border-white/10
@@ -707,7 +909,12 @@ export default function Home() {
                   <button onClick={incrementAmount} className="h-9 w-9 landscape:h-7 landscape:w-7 rounded-lg bg-[#262A34] text-gray-200 text-lg landscape:text-sm font-bold">+</button>
                 </div>
               </div>
-              <TimeSelector duration={tradeDuration} onDurationChange={setTradeDuration} />
+              <TimeSelector
+                duration={tradeDuration}
+                onDurationChange={setTradeDuration}
+                expiryTimestamp={expiryTimestamp}
+                onExpiryChange={setExpiryTimestamp}
+              />
             </div>
 
             <div className="rounded-xl bg-[#1C1F27] border border-[#2C303A] px-4 py-3 landscape:py-1 space-y-3 landscape:space-y-1">
@@ -720,8 +927,22 @@ export default function Home() {
                 <span>₹{(tradeAmount * 1.82).toFixed(2)}</span>
               </div>
               <div className="grid grid-cols-2 gap-3 landscape:gap-1 mt-2 landscape:mt-1">
-                <button onClick={() => handleTrade('up')} className="bg-emerald-500 text-black py-3 landscape:py-1 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all">UP</button>
-                <button onClick={() => handleTrade('down')} className="bg-rose-500 text-white py-3 landscape:py-1 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all">DOWN</button>
+                <button
+                  onClick={() => handleTrade('up')}
+                  onMouseEnter={() => setHoverDirection('up')}
+                  onMouseLeave={() => setHoverDirection(null)}
+                  className="bg-emerald-500 text-black py-3 landscape:py-1 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all"
+                >
+                  UP
+                </button>
+                <button
+                  onClick={() => handleTrade('down')}
+                  onMouseEnter={() => setHoverDirection('down')}
+                  onMouseLeave={() => setHoverDirection(null)}
+                  className="bg-rose-500 text-white py-3 landscape:py-1 rounded-lg font-bold hover:brightness-110 active:scale-95 transition-all"
+                >
+                  DOWN
+                </button>
               </div>
             </div>
           </div>
@@ -766,22 +987,33 @@ export default function Home() {
         {/* Controls Row */}
         <div className="flex items-start gap-3 mb-3">
           {/* Time Input */}
-          <div className="flex-1 bg-[#23262F] rounded-xl p-2 flex flex-col items-center justify-center relative">
-            <span className="text-[10px] text-gray-400 mb-1">Time</span>
-            <div className="flex items-center justify-between w-full">
-              <button onClick={() => setTradeDuration(prev => Math.max(5, prev - 5))} className="w-8 h-8 flex items-center justify-center bg-[#2C303A] rounded-lg text-gray-300 active:scale-90">-</button>
-              <span className="font-bold text-white text-lg">{tradeDuration}s</span>
-              <button onClick={() => setTradeDuration(prev => prev + 5)} className="w-8 h-8 flex items-center justify-center bg-[#2C303A] rounded-lg text-gray-300 active:scale-90">+</button>
-            </div>
+          {/* Time Input - Replaced with Shared TimeSelector logic */}
+          <div className="flex-1 bg-[#23262F] rounded-xl p-0.5 flex flex-col items-center justify-center relative">
+            <TimeSelector
+              duration={tradeDuration}
+              onDurationChange={setTradeDuration}
+              expiryTimestamp={expiryTimestamp}
+              onExpiryChange={setExpiryTimestamp}
+            />
           </div>
 
           {/* Amount Input */}
-          <div className="flex-1 bg-[#23262F] rounded-xl p-2 flex flex-col items-center justify-center relative">
-            <span className="text-[10px] text-gray-400 mb-1">Investment</span>
-            <div className="flex items-center justify-between w-full">
-              <button onClick={decrementAmount} className="w-8 h-8 flex items-center justify-center bg-[#2C303A] rounded-lg text-gray-300 active:scale-90">-</button>
-              <span className="font-bold text-white text-lg">₹{tradeAmount}</span>
-              <button onClick={incrementAmount} className="w-8 h-8 flex items-center justify-center bg-[#2C303A] rounded-lg text-gray-300 active:scale-90">+</button>
+          {/* Amount Input - Styled to match TimeSelector */}
+          <div className="flex-1">
+            <div className="flex flex-col gap-1 p-3 border border-[#2C303A] rounded-xl bg-[#1C1F27]">
+              <div className="flex items-center justify-between text-[11px] text-gray-400">
+                <span className="font-medium">Investment</span>
+                <span className="text-[10px] text-gray-500 font-bold">INR</span>
+              </div>
+              <div className="flex items-center justify-between mt-1 gap-2">
+                <button onClick={decrementAmount} className="h-8 w-8 flex-shrink-0 flex items-center justify-center rounded-full bg-[#2A2E39] text-gray-300 hover:bg-[#323642] transition-colors">
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="flex-1 text-center text-lg font-bold text-white tracking-wide font-mono">₹{tradeAmount}</span>
+                <button onClick={incrementAmount} className="h-8 w-8 flex-shrink-0 flex items-center justify-center rounded-full bg-[#2A2E39] text-gray-300 hover:bg-[#323642] transition-colors">
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
