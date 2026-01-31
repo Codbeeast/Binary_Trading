@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { io } from "socket.io-client";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,9 +14,9 @@ import AssetSelector from "@/components/AssetSelector";
 import ChartTypeModal from "@/components/ChartTypeModal"; // Import Modal
 // import LiveLeaderboard from "@/components/tournaments/LiveLeaderboard"; // Removed
 import UserMenu from "@/components/UserMenu";
-import { User, Menu, SlidersHorizontal, ArrowRightSquare, X, CandlestickChart, Trophy, Plus, Minus } from "lucide-react"; // Import Icon
+import { User, Menu, SlidersHorizontal, ArrowRightSquare, X, CandlestickChart, Trophy, Plus, Minus, Loader2 } from "lucide-react"; // Import Icon
 
-export default function Home() {
+function ChartContent() {
   const { data: session, status } = useSession();
   const router = useRouter(); // Restore router
   const searchParams = useSearchParams();
@@ -1045,5 +1045,17 @@ export default function Home() {
       </div>
 
     </main >
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen w-full items-center justify-center bg-[#16181F]">
+        <Loader2 className="h-10 w-10 animate-spin text-[#FCC419]" />
+      </div>
+    }>
+      <ChartContent />
+    </Suspense>
   );
 }
