@@ -107,7 +107,9 @@ function ChartContent() {
     let timeoutId;
 
     const scheduleNextUpdate = () => {
-      const now = Date.now();
+      // FIX: Use Synchronized Server Time
+      const now = Date.now() + clockOffsetRef.current;
+
       if (!currentExpiry) return;
 
       // Target: When remaining time hits < 30s.
@@ -204,9 +206,12 @@ function ChartContent() {
   const [tradeResults, setTradeResults] = useState([]);
   const [tradeHistory, setTradeHistory] = useState([]);
 
+
+
   const tickCountRef = useRef(0);
   const priceHistoryRef = useRef([]);
   const activeTradesRef = useRef([]); // Sync Ref for socket callbacks
+  const clockOffsetRef = useRef(0); // FIX: Server Time Synchronization (ServerTime - ClientTime)
 
   // Derived state: Get candles for the currently selected timeframe
   const candles = candlesMap[selectedTimeframe] || [];
@@ -546,6 +551,11 @@ function ChartContent() {
         setCurrentPrice(tick.price);
         setLastTickTimestamp(tick.timestamp); // Capture timestamp
         setLatestTick({ price: tick.price, timestamp: tick.timestamp }); // Atomic sync
+
+        // FIX: Sync Clock Offset (Server Time - Local Time)
+        // This ensures our timers run on SERVER time, not drifted local time.
+        clockOffsetRef.current = tick.timestamp - Date.now();
+
         setMarketState(prev => ({ ...prev, currentPrice: tick.price, direction: tick.direction }));
 
         // Update stats
