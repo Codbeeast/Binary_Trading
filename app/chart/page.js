@@ -115,7 +115,7 @@ function ChartContent() {
         currentExpiry += 60000;
         setExpiryTimestamp(currentExpiry);
       }
-    }, 1000);
+    }, 200);
 
     return () => clearInterval(interval);
   }, []);
