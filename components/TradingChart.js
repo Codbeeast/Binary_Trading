@@ -680,9 +680,11 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
         if (activeTradeExpiryTs !== null) {
           // Case A: Active Trade determines view
           expiryTs = activeTradeExpiryTs;
-        } else if (userExpiry && userExpiry > now) {
+        } else if (userExpiry && (userExpiry - expiryCycle) > (now + 100)) {
           // Case B: User/Parent selected expiry (Fixed Mode)
-          // Default logic: Grey = UserExpiry - Cycle
+          // CONDITION FIX: Only use this if the GREY LINE (Purchase Deadline) is still in the future (> 100ms buffer).
+          // If Grey Line is expired (<= now), we ignore the stale React Prop and fall back to Auto Mode (Calculated from Now).
+          // This fixes the "3s Lag / Starting at 57s" issue by masking the React update delay.
           expiryTs = userExpiry - expiryCycle;
         } else {
           // Case C: Auto Mode (Next 30s/60s interval)
