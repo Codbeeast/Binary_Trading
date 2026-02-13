@@ -39,4 +39,5 @@ const UserSchema = new mongoose.Schema({
     }
 });
 
-module.exports = mongoose.model('User', UserSchema);
+// Check if model exists before compiling to avoid OverwriteModelError in Next.js dev mode
+module.exports = mongoose.models.User || mongoose.model('User', UserSchema);

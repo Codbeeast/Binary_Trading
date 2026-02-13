@@ -203,18 +203,15 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
         };
       }
 
-      // Active Candle Merge:
-      // Open: Trust Server (Open shouldn't change, but if it does, server is right)
-      // High: Max(Server, Local) - prevents shrinking wicks
-      // Low: Min(Server, Local) - prevents shrinking wicks
-      // Close: Trust Local (prev.close) because it reflects the most recent 'currentPrice' tick, 
-      //        which is likely newer than the 'candles' prop update (socket latency).
+      // Active Candle: Server is authoritative for ALL values
+      // Since we removed client-side wick expansion, the server's candle_update
+      // contains the most accurate OHLC data from all ticks.
       return {
         ...prev,
         open: c.open,
-        high: Math.max(prev.high, c.high),
-        low: Math.min(prev.low, c.low),
-        close: prev.close, // Keep local live price
+        high: c.high,
+        low: c.low,
+        close: c.close, // Use server's close, not local
         targetOpen: c.open,
         targetHigh: c.high,
         targetLow: c.low,
@@ -257,12 +254,9 @@ export default function TradingChart({ candles, currentPrice, lastTickTimestamp,
     if (tickPrice > lastCandle.targetHigh) lastCandle.targetHigh = tickPrice;
     if (tickPrice < lastCandle.targetLow) lastCandle.targetLow = tickPrice;
 
-    // Immediate update for High/Low (snap) to prevent "wick lag"
-    if (tickPrice > lastCandle.high) lastCandle.high = tickPrice;
-    if (tickPrice < lastCandle.low) lastCandle.low = tickPrice;
-
-    // Mark as modified so persistence logic can pick it up if needed (though we prefer server source)
-    lastCandle.isClientModified = true;
+    // NOTE: We NO LONGER update lastCandle.high/low directly from ticks.
+    // The server's candle_update events contain the authoritative OHLC values.
+    // Client-side wick expansion was causing mismatch between pre-refresh and post-refresh values.
 
     // FRAMER MOTION: Update spring target
     if (priceSpring) {
