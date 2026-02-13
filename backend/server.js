@@ -25,6 +25,7 @@ const MarketControl = require('./models/MarketControl');
 
 const Trade = require('./models/Trade');
 const User = require('./models/User');
+const TournamentParticipant = require('./models/TournamentParticipant');
 
 // Trade statistics (in-memory cache for speed)
 // Trade statistics (per asset)
@@ -512,8 +513,11 @@ function startBinanceRealTimeData() {
         binanceService = new BinanceService();
 
         // Track active symbols to subscribe to
-        // Track active symbols to subscribe to
         const cryptoSymbols = ALL_ASSETS.filter(a => a.type === 'crypto').map(a => a.symbol);
+
+        // TICK THROTTLE: Track last tick emit time per symbol to prevent price line jumping
+        const lastTickEmitTime = new Map();
+        const TICK_THROTTLE_MS = 100; // Max 10 tick_update per second per symbol
 
         // Connect with initial list
         binanceService.connect(cryptoSymbols);
@@ -631,25 +635,32 @@ function startBinanceRealTimeData() {
                         marketState.direction = visualDirection;
                         state.lastRealPrice = realPrice;
 
-                        // Save Tick
-                        Tick.create({
-                                price: manipulatedPrice,
-                                timestamp: new Date(timestamp),
-                                timeframe: '5s',
-                                symbol: symbol
-                        }).catch(err => console.error('❌ Error saving tick:', err));
-
-                        // Emit Room Update
-                        io.to(symbol).emit('tick_update', {
-                                price: manipulatedPrice,
-                                timestamp,
-                                direction: visualDirection,
-                                symbol: symbol
-                        });
-
-                        // Update Candles
+                        // ALWAYS update candles with every tick for accurate OHLC
                         for (const timeframe of ['5s', '15s', '30s', '1m']) {
                                 processAssetCandle(symbol, timeframe, manipulatedPrice, timestamp);
+                        }
+
+                        // THROTTLED: Only emit tick_update at most 10 times per second per symbol
+                        // This prevents the price line from jumping due to too many rapid updates
+                        const lastEmit = lastTickEmitTime.get(symbol) || 0;
+                        if (timestamp - lastEmit >= TICK_THROTTLE_MS) {
+                                lastTickEmitTime.set(symbol, timestamp);
+
+                                // Save Tick (also throttled to reduce DB writes)
+                                Tick.create({
+                                        price: manipulatedPrice,
+                                        timestamp: new Date(timestamp),
+                                        timeframe: '5s',
+                                        symbol: symbol
+                                }).catch(err => console.error('❌ Error saving tick:', err));
+
+                                // Emit Room Update
+                                io.to(symbol).emit('tick_update', {
+                                        price: manipulatedPrice,
+                                        timestamp,
+                                        direction: visualDirection,
+                                        symbol: symbol
+                                });
                         }
                 });
         });
@@ -681,43 +692,17 @@ function getAssetCandleTracker(symbol, timeframe) {
 
 function processAssetCandle(symbol, timeframe, price, timestamp) {
         const tracker = getAssetCandleTracker(symbol, timeframe);
-
-        // GRID ALIGNMENT: Snap timestamp to the exact timeframe bucket (e.g. 10:00:00, 10:00:05)
         const duration = tracker.duration;
         const alignedTimestamp = Math.floor(timestamp / duration) * duration;
 
-        // Detect New Candle: If tracker is empty OR new bucket is later than current tracker start
-        if (!tracker.startTime || alignedTimestamp > tracker.startTime) {
-                // Complete previous candle
-                const completedCandle = tracker.startTime && tracker.open !== null ? {
-                        open: tracker.open,
-                        high: tracker.high,
-                        low: tracker.low,
-                        close: tracker.close,
-                        timeframe,
-                        timestamp: new Date(tracker.startTime),
-                        symbol: symbol
-                } : null;
-
-                // Reset tracker for NEW candle
-                tracker.open = price;
-                tracker.high = price;
-                tracker.low = price;
-                tracker.close = price;
-                tracker.startTime = alignedTimestamp; // Use ALIGNED time
-
-                if (completedCandle) {
-                        // console.log('🔥 CANDLE COMPLETE:', symbol, completedCandle.timeframe, completedCandle.close);
-                        saveCandle(completedCandle); // Save with symbol
-                        io.to(symbol).emit('candle_complete', completedCandle);
-                }
-        } else {
-                // Update candle
+        // Case 1: Same bucket as current tracker - UPDATE existing candle
+        if (tracker.startTime && tracker.startTime === alignedTimestamp) {
                 tracker.high = Math.max(tracker.high, price);
                 tracker.low = Math.min(tracker.low, price);
                 tracker.close = price;
 
-                // console.log('⚡ CANDLE UPDATE:', symbol, timeframe, price); // Verbose
+                // Emit candle_update on EVERY tick to ensure OHLC consistency on refresh
+                // (Only tick_update is throttled for price line smoothness)
                 io.to(symbol).emit('candle_update', {
                         open: tracker.open,
                         high: tracker.high,
@@ -727,7 +712,46 @@ function processAssetCandle(symbol, timeframe, price, timestamp) {
                         timestamp: new Date(tracker.startTime),
                         symbol: symbol
                 });
+                return;
         }
+
+        // Case 2: NEW bucket detected (or first ever candle)
+        // FIRST: Complete and emit the previous candle with its FINALIZED data
+        // (candle_complete should ALWAYS emit immediately, no throttle)
+        if (tracker.startTime && tracker.open !== null) {
+                const completedCandle = {
+                        open: tracker.open,
+                        high: tracker.high,
+                        low: tracker.low,
+                        close: tracker.close,  // This is the LAST close value of the old candle
+                        timeframe,
+                        timestamp: new Date(tracker.startTime),
+                        symbol: symbol
+                };
+
+                // console.log('🔥 CANDLE COMPLETE:', symbol, completedCandle.timeframe, completedCandle.close);
+                saveCandle(completedCandle);
+                io.to(symbol).emit('candle_complete', completedCandle);
+        }
+
+        // THEN: Reset tracker for the NEW candle
+        tracker.open = price;
+        tracker.high = price;
+        tracker.low = price;
+        tracker.close = price;
+        tracker.startTime = alignedTimestamp;
+
+        // Emit initial state of the new candle so client can render it immediately
+        // (No throttle for first emit of new candle)
+        io.to(symbol).emit('candle_update', {
+                open: tracker.open,
+                high: tracker.high,
+                low: tracker.low,
+                close: tracker.close,
+                timeframe,
+                timestamp: new Date(tracker.startTime),
+                symbol: symbol
+        });
 }
 // Database Cleanup Logic
 
@@ -794,13 +818,22 @@ io.on('connection', (socket) => {
 
                                 const history = await Trade.find({ userId })
                                         .sort({ timestamp: -1 })
-                                        .limit(50);
+                                        .limit(200);
 
                                 socket.emit('user_trade_history', history);
                         } catch (err) {
                                 console.error('Error fetching user trade history:', err);
                         }
                 }
+        });
+
+        // JOIN TOURNAMENT ROOM (For Leaderboard Updates)
+        socket.on('join_tournament', (tournamentId) => {
+                if (!tournamentId) return;
+                socket.join(`tournament_${tournamentId}`);
+                console.log(`🏆 Socket ${socket.id} joined tournament room: ${tournamentId}`);
+                // Send immediate update to this user
+                broadcastLeaderboard(tournamentId);
         });
 
         // Handle subscription
@@ -882,18 +915,44 @@ io.on('connection', (socket) => {
                                 result: 'pending',
                                 timestamp: new Date(),
                                 expiryTime: new Date(Date.now() + (duration * 1000)),
-                                clientTradeId
+                                clientTradeId,
+                                tournamentId: data.tournamentId || null
                         });
 
                         // Deduct Balance
-                        const user = await User.findByIdAndUpdate(
-                                userId,
-                                { $inc: { balance: -amount } },
-                                { new: true }
-                        );
+                        if (data.tournamentId) {
+                                // --- TOURNAMENT TRADE ---
+                                const participant = await TournamentParticipant.findOne({
+                                        userId,
+                                        tournamentId: data.tournamentId
+                                });
+                                if (!participant) {
+                                        console.error('❌ Tournament participant not found for trade');
+                                        return;
+                                }
+                                if (participant.currentBalance < amount) {
+                                        console.error('❌ Insufficient tournament balance');
+                                        return;
+                                }
 
-                        if (user) {
-                                io.to(userId).emit('balance_update', user.balance);
+                                participant.currentBalance -= amount;
+                                participant.tradeCount += 1; // Track activity (optional)
+                                await participant.save();
+
+                                // Emit dedicated event for tournament balance
+                                io.to(userId).emit('tournament_balance_update', participant.currentBalance);
+
+                        } else {
+                                // --- STANDARD TRADE ---
+                                const user = await User.findByIdAndUpdate(
+                                        userId,
+                                        { $inc: { balance: -amount } },
+                                        { new: true }
+                                );
+
+                                if (user) {
+                                        io.to(userId).emit('balance_update', user.balance);
+                                }
                         }
 
                         await newTrade.save();
@@ -944,7 +1003,38 @@ io.on('connection', (socket) => {
 
 
                                         // Update User Balance on Win
-                                        if (result === 'win') {
+                                        // Update Participant / User Balance
+                                        if (newTrade.tournamentId) {
+                                                // --- TOURNAMENT TRADE ---
+                                                try {
+                                                        const participant = await TournamentParticipant.findOne({
+                                                                userId,
+                                                                tournamentId: newTrade.tournamentId
+                                                        });
+
+                                                        if (participant) {
+                                                                // Always update trade counts
+                                                                participant.tradesCount += 1;
+
+                                                                if (result === 'win') {
+                                                                        participant.currentBalance += payout;
+                                                                        participant.tradesWon += 1;
+                                                                }
+
+                                                                await participant.save();
+
+                                                                // 1. Send personal balance update
+                                                                io.to(userId).emit('tournament_balance_update', participant.currentBalance);
+
+                                                                // 2. Broadcast global leaderboard update
+                                                                broadcastLeaderboard(newTrade.tournamentId);
+                                                        }
+                                                } catch (err) {
+                                                        console.error("Error updating tournament participant:", err);
+                                                }
+
+                                        } else if (result === 'win') {
+                                                // --- STANDARD TRADE (Win Only) ---
                                                 const updatedUser = await User.findByIdAndUpdate(
                                                         userId,
                                                         { $inc: { balance: payout } },
@@ -996,6 +1086,13 @@ io.on('connection', (socket) => {
                                         io.to(symbol).emit('stats_update', {
                                                 ...stats,
                                                 symbol: symbol, // Critical for filtering
+                                                activeUsers: io.engine.clientsCount
+                                        });
+
+                                        // ALSO broadcast to admin room to ensure real-time updates
+                                        io.to('admin').emit('stats_update', {
+                                                ...stats,
+                                                symbol: symbol,
                                                 activeUsers: io.engine.clientsCount
                                         });
 
@@ -1228,8 +1325,91 @@ io.on('connection', (socket) => {
         });
 });
 
+// ========== PERIODIC ADMIN STATS BROADCAST ==========
+// Pushes fresh stats to the admin room every 5 seconds
+// This ensures activeUsers, trade counts, and volumes stay current
+// even when no trades are being placed/resolved.
+setInterval(() => {
+        const adminRoom = io.sockets.adapter.rooms.get('admin');
+        if (!adminRoom || adminRoom.size === 0) return; // No admins connected, skip
+
+        // Broadcast stats for every tracked asset
+        assetStates.forEach((state, symbol) => {
+                const stats = getAssetStats(symbol);
+                io.to('admin').emit('stats_update', {
+                        ...stats,
+                        symbol: symbol,
+                        activeUsers: io.engine.clientsCount
+                });
+        });
+}, 5000); // Every 5 seconds
+
 // Initialize and start server
 const PORT = process.env.PORT || 3001;
+
+// --- HELPER FUNCTIONS ---
+
+// Broadcast Leaderboard
+async function broadcastLeaderboard(tournamentId) {
+        try {
+                console.log(`🏆 Broadcasting Leaderboard for: ${tournamentId}`);
+
+                const participants = await TournamentParticipant.find({ tournamentId })
+                        .sort({ currentBalance: -1 })
+                        .limit(50)
+                        .populate('userId', 'name image email'); // Populate user details
+
+                console.log(`📊 Found ${participants.length} participants`);
+
+                // Map to cleaner format
+                const leaderboard = participants.map((p, index) => ({
+                        rank: index + 1,
+                        userId: p.userId?._id,
+                        name: p.userId?.name || 'Trader',
+                        avatar: p.userId?.image,
+                        balance: p.currentBalance,
+                        trades: p.tradesCount,
+                        isCurrentUser: false // Frontend determines this
+                }));
+
+                io.to(`tournament_${tournamentId}`).emit('leaderboard_update', leaderboard);
+        } catch (err) {
+                console.error("❌ Leaderboard update error:", err);
+        }
+}
+
+// Sync Tournament Stats (Backfill Helper)
+async function syncTournamentStats() {
+        console.log("🔄 Syncing tournament stats...");
+        try {
+                const participants = await TournamentParticipant.find({});
+                let updatedCount = 0;
+
+                for (const p of participants) {
+                        const tradesCount = await Trade.countDocuments({
+                                userId: p.userId,
+                                tournamentId: p.tournamentId
+                        });
+
+                        const tradesWon = await Trade.countDocuments({
+                                userId: p.userId,
+                                tournamentId: p.tournamentId,
+                                result: 'win'
+                        });
+
+                        if (p.tradesCount !== tradesCount || p.tradesWon !== tradesWon) {
+                                p.tradesCount = tradesCount;
+                                p.tradesWon = tradesWon;
+                                await p.save();
+                                updatedCount++;
+                        }
+                }
+                console.log(`✅ Synced stats for ${updatedCount} participants out of ${participants.length}`);
+
+        } catch (err) {
+                console.error("❌ Error syncing tournament stats:", err);
+        }
+}
 
 // Main startup function
 async function startServer() {
@@ -1250,6 +1430,9 @@ async function startServer() {
 
                 // Start data cleanup process
                 startDataCleanup();
+
+                // Sync stats once on startup
+                await syncTournamentStats();
 
                 // Start data generation based on mode
                 if (MARKET_DATA_MODE === 'real') {
