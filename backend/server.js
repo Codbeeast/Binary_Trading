@@ -846,10 +846,10 @@ io.on('connection', (socket) => {
         console.log('👤 Client connected:', socket.id);
 
         // GLOBAL PRESENCE TRACKING — Only logged-in users count.
-        // PresenceProvider sends { userId } when the user is authenticated.
-        // Anonymous visitors (no userId) are NOT counted.
+        // PresenceProvider sends { userId } ONLY when the user is authenticated.
+        // Anonymous visitors never call this event.
         socket.on('join_presence', (data) => {
-                // IGNORE if no userId — anonymous visitors don't count
+                // IGNORE if no userId — safety check
                 if (!data || !data.userId) {
                         console.log(`⚪ Presence skipped (no userId): ${socket.id}`);
                         return;
@@ -858,32 +858,31 @@ io.on('connection', (socket) => {
                 const userKey = data.userId;
                 socket.userId = data.userId;
 
-                // Add this socket under the userId key
+                // Add this socket under the userId key (handles re-keying if needed)
                 addSocketToPresence(socket, userKey);
 
-                // Also migrate any OTHER sockets from the same IP that aren't yet keyed to a userId
-                // (e.g. chart page socket that connected before PresenceProvider sent join_presence)
-                const ip = getClientIp(socket);
-                if (presenceTracker.has(ip)) {
-                        const ipSockets = presenceTracker.get(ip);
-                        for (const sid of [...ipSockets]) {
-                                const otherSocket = io.sockets.sockets.get(sid);
-                                if (otherSocket) {
-                                        addSocketToPresence(otherSocket, userKey);
-                                }
-                        }
-                        // Clean up the now-empty IP entry
-                        if (presenceTracker.has(ip) && presenceTracker.get(ip).size === 0) {
-                                presenceTracker.delete(ip);
-                        }
-                }
+                console.log(`🟢 Presence joined: ${socket.id} (userId: ${userKey}, Logged-in users: ${presenceTracker.size})`);
 
-                console.log(`🟢 Presence joined: ${socket.id} (userId: ${userKey}, Unique logged-in users: ${presenceTracker.size})`);
-
-                // Broadcast updated presence count to admin
+                // Broadcast updated count to admin
                 io.to('admin').emit('presence_count', { activeUsers: presenceTracker.size });
         });
 
+        // Handle explicit logout — remove user from presence immediately
+        socket.on('leave_presence', () => {
+                const userKey = socket._presenceKey;
+                if (userKey && presenceTracker.has(userKey)) {
+                        const sockets = presenceTracker.get(userKey);
+                        sockets.delete(socket.id);
+                        if (sockets.size === 0) {
+                                presenceTracker.delete(userKey);
+                        }
+                        socket._presenceKey = null;
+                        console.log(`🔴 Presence left (logout): ${socket.id} (userId: ${userKey}, Logged-in users: ${presenceTracker.size})`);
+
+                        // Broadcast updated count to admin
+                        io.to('admin').emit('presence_count', { activeUsers: presenceTracker.size });
+                }
+        });
         // On disconnect, update presence tracking
         socket.on('disconnect', () => {
                 const userKey = socket._presenceKey;
