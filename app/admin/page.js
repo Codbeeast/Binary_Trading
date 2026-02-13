@@ -109,6 +109,10 @@ export default function AdminPage() {
             newSocket.emit('request_stats', selectedAsset); // Fetch stats for THIS asset
             newSocket.emit('subscribe', selectedAsset); // Subscribe to selected asset to get its state
 
+            // FIX: Join admin room AFTER connection is established
+            newSocket.emit('join_admin');
+            newSocket.emit('request_active_trades', selectedAsset);
+
             // RESTORE SERVER STATE from Local Storage (Client is Master)
             const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
             const savedAssetData = allStates[selectedAsset];
@@ -130,9 +134,7 @@ export default function AdminPage() {
 
         newSocket.on('disconnect', () => setIsConnected(false));
 
-        // Admin: Active Trades Sync
-        newSocket.emit('join_admin');
-
+        // Admin: Active Trades Sync (listeners only - no emits before connect)
         newSocket.on('active_trades_list', (trades) => {
             setAdminActiveTrades(trades);
         });
@@ -177,7 +179,6 @@ export default function AdminPage() {
         newSocket.on('stats_update', (newStats) => {
             // Only update if stats belong to the currently selected asset
             if (newStats.symbol === selectedAssetRef.current) {
-                // console.log('Stats received for', newStats.symbol);
                 setStats(newStats);
             }
         });
@@ -186,9 +187,20 @@ export default function AdminPage() {
             alert(`Candle closed for ${data.timeframe}: ${data.success ? 'Success' : 'Failed'}`);
         });
 
+        // POLLING FALLBACK: Request fresh stats every 5 seconds
+        // This guarantees real-time updates even if server push events are missed
+        const statsInterval = setInterval(() => {
+            if (newSocket.connected) {
+                newSocket.emit('request_stats', selectedAssetRef.current);
+            }
+        }, 5000);
+
         setSocket(newSocket);
 
-        return () => newSocket.close();
+        return () => {
+            clearInterval(statsInterval);
+            newSocket.close();
+        };
     }, [selectedAsset]); // Re-connect or re-subscribe when asset changes
 
     // Re-fetch trades when asset changes
