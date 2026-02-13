@@ -105,6 +105,8 @@ const io = new Server(httpServer, {
                 origin: '*',
                 methods: ['GET', 'POST'],
         },
+        pingInterval: 10000,  // Ping every 10s (default: 25s)
+        pingTimeout: 5000,    // Wait 5s for pong (default: 20s)
 });
 
 // REST API Endpoints

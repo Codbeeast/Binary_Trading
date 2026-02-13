@@ -73,11 +73,18 @@ export default function PresenceProvider({ children }) {
         socketRef.current = presenceSocket;
 
         // Cleanup on unmount or when userId changes
-        return () => {
+        const cleanup = () => {
             console.log('🔴 Presence: cleanup, closing socket');
             presenceSocket.emit('leave_presence');
             presenceSocket.close();
             socketRef.current = null;
+        };
+
+        window.addEventListener('beforeunload', cleanup);
+
+        return () => {
+            window.removeEventListener('beforeunload', cleanup);
+            cleanup();
         };
     }, [isAuthenticated, userId]); // Re-run when auth state or userId changes
 
