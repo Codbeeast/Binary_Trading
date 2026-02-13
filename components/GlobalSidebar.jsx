@@ -32,7 +32,7 @@ export default function GlobalSidebar({
     const navItems = [
         { name: "Market", href: "/chart", icon: BarChart3 },
         { name: "Analytics", href: "/analytics", icon: LayoutDashboard },
-        { name: "Tournaments", href: "#", icon: Trophy, isComingSoon: true },
+        { name: "Tournaments", href: "/tournaments", icon: Trophy },
     ];
 
     const handleComingSoon = (e, name) => {
@@ -152,18 +152,6 @@ export default function GlobalSidebar({
 
                 {/* Footer Actions */}
                 <div className="p-4 border-t border-[#262932] flex flex-col gap-3 bg-[#111318]/50">
-                    {/* Settings */}
-                    <button className={cn(
-                        "flex items-center gap-4 px-3 py-3 rounded-2xl text-gray-400 hover:bg-[#1A1D24] hover:text-white transition-all duration-300 group",
-                        !isMobileOpen && isCollapsed && "justify-center"
-                    )}>
-                        <Settings className="w-6 h-6 group-hover:rotate-45 transition-transform duration-500" />
-                        <span className={cn(
-                            "font-medium whitespace-nowrap transition-all duration-300 text-[15px]",
-                            !isMobileOpen && isCollapsed ? "hidden" : "block"
-                        )}>Settings</span>
-                    </button>
-
                     {/* Collapse Toggle (Desktop Only) */}
                     <button
                         onClick={() => setIsCollapsed(!isCollapsed)}
