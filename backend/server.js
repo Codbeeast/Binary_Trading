@@ -33,8 +33,44 @@ const assetStats = new Map();
 
 // Unique presence tracking — prevents double-counting when a user
 // has multiple socket connections (e.g. PresenceProvider + chart page socket)
-// Key: unique identifier (IP + user-agent hash), Value: Set of socket IDs
+// Key: unique identifier (userId or IP), Value: Set of socket IDs
 const presenceTracker = new Map();
+
+// Helper: Extract real client IP behind reverse proxies (Vercel, Render, Nginx, etc.)
+function getClientIp(socket) {
+        const headers = socket.handshake.headers || {};
+        // x-forwarded-for can be a comma-separated list; first entry is the real client
+        const forwarded = headers['x-forwarded-for'];
+        if (forwarded) {
+                return forwarded.split(',')[0].trim();
+        }
+        // x-real-ip is set by some proxies (Nginx)
+        if (headers['x-real-ip']) {
+                return headers['x-real-ip'].trim();
+        }
+        // Fallback to raw socket address
+        return socket.handshake.address;
+}
+
+// Helper: Add a socket to the presenceTracker under a given key
+function addSocketToPresence(socket, userKey) {
+        // Remove from old key if re-keying
+        const oldKey = socket._presenceKey;
+        if (oldKey && oldKey !== userKey && presenceTracker.has(oldKey)) {
+                const oldSet = presenceTracker.get(oldKey);
+                oldSet.delete(socket.id);
+                if (oldSet.size === 0) {
+                        presenceTracker.delete(oldKey);
+                }
+        }
+
+        socket._presenceKey = userKey;
+
+        if (!presenceTracker.has(userKey)) {
+                presenceTracker.set(userKey, new Set());
+        }
+        presenceTracker.get(userKey).add(socket.id);
+}
 
 function getAssetStats(symbol) {
         if (!assetStats.has(symbol)) {
@@ -809,27 +845,43 @@ function startDataCleanup() {
 io.on('connection', (socket) => {
         console.log('👤 Client connected:', socket.id);
 
-        // GLOBAL PRESENCE TRACKING (Unique User Counting)
-        // The PresenceProvider on the client sends this event to mark the user as "active on site".
-        // We use a presenceTracker Map to ensure each real user is only counted ONCE,
-        // even if they have multiple socket connections (e.g. PresenceProvider + chart page).
+        // GLOBAL PRESENCE TRACKING — Only logged-in users count.
+        // PresenceProvider sends { userId } when the user is authenticated.
+        // Anonymous visitors (no userId) are NOT counted.
         socket.on('join_presence', (data) => {
-                // Build a unique key — prefer userId, fallback to IP address
-                const ip = socket.handshake.address;
-                const userKey = (data && data.userId) ? data.userId : ip;
-
-                if (data && data.userId) {
-                        socket.userId = data.userId;
+                // IGNORE if no userId — anonymous visitors don't count
+                if (!data || !data.userId) {
+                        console.log(`⚪ Presence skipped (no userId): ${socket.id}`);
+                        return;
                 }
-                socket._presenceKey = userKey; // Tag socket for cleanup on disconnect
 
-                // Track this socket under the user's key
-                if (!presenceTracker.has(userKey)) {
-                        presenceTracker.set(userKey, new Set());
+                const userKey = data.userId;
+                socket.userId = data.userId;
+
+                // Add this socket under the userId key
+                addSocketToPresence(socket, userKey);
+
+                // Also migrate any OTHER sockets from the same IP that aren't yet keyed to a userId
+                // (e.g. chart page socket that connected before PresenceProvider sent join_presence)
+                const ip = getClientIp(socket);
+                if (presenceTracker.has(ip)) {
+                        const ipSockets = presenceTracker.get(ip);
+                        for (const sid of [...ipSockets]) {
+                                const otherSocket = io.sockets.sockets.get(sid);
+                                if (otherSocket) {
+                                        addSocketToPresence(otherSocket, userKey);
+                                }
+                        }
+                        // Clean up the now-empty IP entry
+                        if (presenceTracker.has(ip) && presenceTracker.get(ip).size === 0) {
+                                presenceTracker.delete(ip);
+                        }
                 }
-                presenceTracker.get(userKey).add(socket.id);
 
-                console.log(`🟢 Presence joined: ${socket.id} (key: ${userKey}, Unique users online: ${presenceTracker.size})`);
+                console.log(`🟢 Presence joined: ${socket.id} (userId: ${userKey}, Unique logged-in users: ${presenceTracker.size})`);
+
+                // Broadcast updated presence count to admin
+                io.to('admin').emit('presence_count', { activeUsers: presenceTracker.size });
         });
 
         // On disconnect, update presence tracking
@@ -844,6 +896,9 @@ io.on('connection', (socket) => {
                         }
                 }
                 console.log(`👤 Client disconnected: ${socket.id} (Unique users online: ${presenceTracker.size})`);
+
+                // Broadcast updated presence count to admin
+                io.to('admin').emit('presence_count', { activeUsers: presenceTracker.size });
         });
         // Handle joining user room for multi-tab sync
         socket.on('join_user', async (userId) => {
@@ -1322,15 +1377,7 @@ io.on('connection', (socket) => {
                 });
         });
 
-        socket.on('disconnect', () => {
-                console.log('👤 Client disconnected:', socket.id);
-        });
-
-
-
-
-
-        // Handle admin stats request
+        // NOTE: Disconnect is handled by the consolidated handler above (presenceTracker cleanup)
         // Handle admin stats request
         socket.on('request_stats', (symbol) => {
                 const targetSymbol = symbol || 'BTCUSDT';

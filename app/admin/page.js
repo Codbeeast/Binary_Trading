@@ -183,6 +183,13 @@ export default function AdminPage() {
             }
         });
 
+        // Real-time presence count updates (sent on every connect/disconnect)
+        newSocket.on('presence_count', (data) => {
+            if (data && typeof data.activeUsers === 'number') {
+                setStats(prev => ({ ...prev, activeUsers: data.activeUsers }));
+            }
+        });
+
         newSocket.on('candle_closed', (data) => {
             alert(`Candle closed for ${data.timeframe}: ${data.success ? 'Success' : 'Failed'}`);
         });
