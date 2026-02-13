@@ -132,7 +132,7 @@ export default function TournamentsComingSoon() {
 
                 {/* Notify Button */}
                 <button
-                    onClick={handleNotify}
+                    
                     disabled={isNotified}
                     className={`
                         relative group px-8 py-4 rounded-2xl font-bold text-base md:text-lg transition-all duration-500
@@ -152,8 +152,8 @@ export default function TournamentsComingSoon() {
                     ) : (
                         <span className="flex items-center gap-3">
                             <Bell className="w-5 h-5" />
-                            Notify Me When It&apos;s Live
-                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                            {/* Notify Me When It&apos;s Live */}
+                            Get Ready For This
                         </span>
                     )}
                     {/* Glow ring */}

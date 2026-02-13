@@ -804,6 +804,21 @@ function startDataCleanup() {
 io.on('connection', (socket) => {
         console.log('👤 Client connected:', socket.id);
 
+        // GLOBAL PRESENCE TRACKING
+        // The PresenceProvider on the client sends this event to mark the user as "active on site"
+        socket.on('join_presence', (data) => {
+                socket.join('presence');
+                if (data && data.userId) {
+                        socket.userId = data.userId; // Tag socket for identification
+                }
+                console.log(`🟢 Presence joined: ${socket.id} (Users online: ${io.sockets.adapter.rooms.get('presence')?.size || 0})`);
+        });
+
+        // On disconnect, log presence count
+        socket.on('disconnect', () => {
+                const presenceRoom = io.sockets.adapter.rooms.get('presence');
+                console.log(`👤 Client disconnected: ${socket.id} (Users online: ${presenceRoom?.size || 0})`);
+        });
         // Handle joining user room for multi-tab sync
         socket.on('join_user', async (userId) => {
                 if (userId) {
@@ -975,7 +990,7 @@ io.on('connection', (socket) => {
                         io.emit('stats_update', {
                                 ...stats,
                                 symbol: symbol || 'BTCUSDT', // Critical for filtering
-                                activeUsers: io.engine.clientsCount
+                                activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
                         });
 
                         // Schedule Trade Resolution
@@ -1086,14 +1101,14 @@ io.on('connection', (socket) => {
                                         io.to(symbol).emit('stats_update', {
                                                 ...stats,
                                                 symbol: symbol, // Critical for filtering
-                                                activeUsers: io.engine.clientsCount
+                                                activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
                                         });
 
                                         // ALSO broadcast to admin room to ensure real-time updates
                                         io.to('admin').emit('stats_update', {
                                                 ...stats,
                                                 symbol: symbol,
-                                                activeUsers: io.engine.clientsCount
+                                                activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
                                         });
 
 
@@ -1301,7 +1316,7 @@ io.on('connection', (socket) => {
                 socket.emit('stats_update', {
                         ...stats,
                         symbol: targetSymbol, // Critical: Client filters by this now!
-                        activeUsers: io.engine.clientsCount // Global active users, or per room? Using global for now.
+                        activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
                 });
         });
 
@@ -1339,7 +1354,7 @@ setInterval(() => {
                 io.to('admin').emit('stats_update', {
                         ...stats,
                         symbol: symbol,
-                        activeUsers: io.engine.clientsCount
+                        activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
                 });
         });
 }, 5000); // Every 5 seconds
