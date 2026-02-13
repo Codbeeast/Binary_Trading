@@ -31,6 +31,11 @@ const TournamentParticipant = require('./models/TournamentParticipant');
 // Trade statistics (per asset)
 const assetStats = new Map();
 
+// Unique presence tracking — prevents double-counting when a user
+// has multiple socket connections (e.g. PresenceProvider + chart page socket)
+// Key: unique identifier (IP + user-agent hash), Value: Set of socket IDs
+const presenceTracker = new Map();
+
 function getAssetStats(symbol) {
         if (!assetStats.has(symbol)) {
                 assetStats.set(symbol, {
@@ -804,20 +809,41 @@ function startDataCleanup() {
 io.on('connection', (socket) => {
         console.log('👤 Client connected:', socket.id);
 
-        // GLOBAL PRESENCE TRACKING
-        // The PresenceProvider on the client sends this event to mark the user as "active on site"
+        // GLOBAL PRESENCE TRACKING (Unique User Counting)
+        // The PresenceProvider on the client sends this event to mark the user as "active on site".
+        // We use a presenceTracker Map to ensure each real user is only counted ONCE,
+        // even if they have multiple socket connections (e.g. PresenceProvider + chart page).
         socket.on('join_presence', (data) => {
-                socket.join('presence');
+                // Build a unique key — prefer userId, fallback to IP address
+                const ip = socket.handshake.address;
+                const userKey = (data && data.userId) ? data.userId : ip;
+
                 if (data && data.userId) {
-                        socket.userId = data.userId; // Tag socket for identification
+                        socket.userId = data.userId;
                 }
-                console.log(`🟢 Presence joined: ${socket.id} (Users online: ${io.sockets.adapter.rooms.get('presence')?.size || 0})`);
+                socket._presenceKey = userKey; // Tag socket for cleanup on disconnect
+
+                // Track this socket under the user's key
+                if (!presenceTracker.has(userKey)) {
+                        presenceTracker.set(userKey, new Set());
+                }
+                presenceTracker.get(userKey).add(socket.id);
+
+                console.log(`🟢 Presence joined: ${socket.id} (key: ${userKey}, Unique users online: ${presenceTracker.size})`);
         });
 
-        // On disconnect, log presence count
+        // On disconnect, update presence tracking
         socket.on('disconnect', () => {
-                const presenceRoom = io.sockets.adapter.rooms.get('presence');
-                console.log(`👤 Client disconnected: ${socket.id} (Users online: ${presenceRoom?.size || 0})`);
+                const userKey = socket._presenceKey;
+                if (userKey && presenceTracker.has(userKey)) {
+                        const sockets = presenceTracker.get(userKey);
+                        sockets.delete(socket.id);
+                        // Only remove the user entry if ALL their sockets are gone
+                        if (sockets.size === 0) {
+                                presenceTracker.delete(userKey);
+                        }
+                }
+                console.log(`👤 Client disconnected: ${socket.id} (Unique users online: ${presenceTracker.size})`);
         });
         // Handle joining user room for multi-tab sync
         socket.on('join_user', async (userId) => {
@@ -990,7 +1016,7 @@ io.on('connection', (socket) => {
                         io.emit('stats_update', {
                                 ...stats,
                                 symbol: symbol || 'BTCUSDT', // Critical for filtering
-                                activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
+                                activeUsers: presenceTracker.size
                         });
 
                         // Schedule Trade Resolution
@@ -1101,14 +1127,14 @@ io.on('connection', (socket) => {
                                         io.to(symbol).emit('stats_update', {
                                                 ...stats,
                                                 symbol: symbol, // Critical for filtering
-                                                activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
+                                                activeUsers: presenceTracker.size
                                         });
 
                                         // ALSO broadcast to admin room to ensure real-time updates
                                         io.to('admin').emit('stats_update', {
                                                 ...stats,
                                                 symbol: symbol,
-                                                activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
+                                                activeUsers: presenceTracker.size
                                         });
 
 
@@ -1316,7 +1342,7 @@ io.on('connection', (socket) => {
                 socket.emit('stats_update', {
                         ...stats,
                         symbol: targetSymbol, // Critical: Client filters by this now!
-                        activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
+                        activeUsers: presenceTracker.size
                 });
         });
 
@@ -1354,7 +1380,7 @@ setInterval(() => {
                 io.to('admin').emit('stats_update', {
                         ...stats,
                         symbol: symbol,
-                        activeUsers: io.sockets.adapter.rooms.get('presence')?.size || 0
+                        activeUsers: presenceTracker.size
                 });
         });
 }, 5000); // Every 5 seconds
