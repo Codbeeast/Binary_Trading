@@ -9,7 +9,6 @@ import {
     Menu,
     X,
     ChevronLeft,
-    Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,16 +31,8 @@ export default function GlobalSidebar({
     const navItems = [
         { name: "Market", href: "/chart", icon: BarChart3 },
         { name: "Analytics", href: "/analytics", icon: LayoutDashboard },
-        { name: "Tournaments", href: "/tournaments", icon: Trophy },
+        { name: "Tournaments", href: "/tournaments-coming-soon", icon: Trophy },
     ];
-
-    const handleComingSoon = (e, name) => {
-        if (name === "Tournaments") {
-            e.preventDefault();
-            // Simple custom toast or alert for now
-            alert("Tournaments feature is coming soon!");
-        }
-    };
 
     return (
         <>
@@ -109,7 +100,6 @@ export default function GlobalSidebar({
                             <Link
                                 key={item.name}
                                 href={item.href}
-                                onClick={(e) => item.isComingSoon && handleComingSoon(e, item.name)}
                                 className={cn(
                                     "flex items-center gap-4 px-3 py-3.5 rounded-2xl transition-all duration-300 group relative overflow-hidden",
                                     isActive
