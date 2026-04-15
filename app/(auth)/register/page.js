@@ -8,7 +8,7 @@ import { Lock, Mail, User as UserIcon, Loader2, Info, CheckCircle2 } from "lucid
 
 export default function RegisterPage() {
     const router = useRouter();
-    const [form, setForm] = useState({ name: "", email: "", password: "" });
+    const [form, setForm] = useState({ name: "", email: "", password: "", referralCode: "" });
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -17,6 +17,17 @@ export default function RegisterPage() {
     useEffect(() => {
         if (status === "authenticated") {
             router.push("/");
+        }
+        
+        // Handle referral code
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const ref = params.get('ref');
+            if (ref) {
+                setForm(f => ({ ...f, referralCode: ref }));
+                // Set cookie for Google OAuth fallback
+                document.cookie = `referralCode=${ref}; path=/; max-age=3600`;
+            }
         }
     }, [status, router]);
 

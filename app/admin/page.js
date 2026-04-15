@@ -16,6 +16,7 @@ const calculateSentiment = (buy, sell) => {
 };
 
 import AssetSelector from "@/components/AssetSelector";
+import AdminReferralSettings from "@/components/AdminReferralSettings";
 
 export default function AdminPage() {
     const [socket, setSocket] = useState(null);
@@ -458,6 +459,9 @@ export default function AdminPage() {
                 </div>
 
             </div>
+            
+            <AdminReferralSettings />
+            
             {/* Critical Actions */}
             <section className="bg-[#16181D] border border-[#272A32] rounded-xl mt-8 p-6">
                 <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">

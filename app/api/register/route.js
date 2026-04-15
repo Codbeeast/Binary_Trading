@@ -8,7 +8,7 @@ export async function POST(req) {
         console.log("📝 Register API Called");
         const body = await req.json();
         console.log("📦 Request Body:", body);
-        const { name, email, password } = body;
+        const { name, email, password, referralCode } = body;
 
         if (!name || !email || !password) {
             console.warn("⚠️ Missing fields");
@@ -29,6 +29,18 @@ export async function POST(req) {
         // Hash password
         console.log("🔐 Hashing password...");
         const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Handle Referral
+        let referredBy = null;
+        if (referralCode) {
+            const referrer = await User.findOne({ referralCode });
+            if (referrer) {
+                referredBy = referrer._id;
+            }
+        }
+        
+        // Generate a new 8-char referral code for this user
+        let newReferralCode = Math.random().toString(36).substring(2, 10).toUpperCase();
 
         // Create user with DEMO balance (10,000)
         console.log("👤 Creating User document...");
@@ -37,7 +49,9 @@ export async function POST(req) {
             email,
             password: hashedPassword,
             balance: 800000,
-            role: 'user'
+            role: 'user',
+            referralCode: newReferralCode,
+            referredBy
         });
 
         console.log("🎉 User Created Successfully:", newUser._id);

@@ -36,7 +36,15 @@ const UserSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now
-    }
+    },
+    // Referral Fields
+    referralCode: { type: String, unique: true, sparse: true },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    referralEarnings: { type: Number, default: 0 },
+    referralBalance: { type: Number, default: 0 },
+    referralTier: { type: Number, default: 1 },
+    monthlyRefereeDeposits: { type: Number, default: 0 },
+    referralTierUpdatedAt: { type: Date, default: null }
 });
 
 // Check if model exists before compiling to avoid OverwriteModelError in Next.js dev mode

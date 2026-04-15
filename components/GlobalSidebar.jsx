@@ -9,6 +9,7 @@ import {
     Menu,
     X,
     ChevronLeft,
+    Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ export default function GlobalSidebar({
     const navItems = [
         { name: "Market", href: "/chart", icon: BarChart3 },
         { name: "Analytics", href: "/analytics", icon: LayoutDashboard },
+        { name: "Partner Program", href: "/referral", icon: Gift },
         { name: "Tournaments", href: "/tournaments-coming-soon", icon: Trophy },
     ];
 

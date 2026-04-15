@@ -26,6 +26,71 @@ const MarketControl = require('./models/MarketControl');
 const Trade = require('./models/Trade');
 const User = require('./models/User');
 const TournamentParticipant = require('./models/TournamentParticipant');
+const ReferralConfig = require('./models/ReferralConfig');
+const ReferralReward = require('./models/ReferralReward');
+
+// Cached config for referral system
+let cachedReferralConfig = null;
+async function getReferralConfig() {
+    if (!cachedReferralConfig) {
+        cachedReferralConfig = await ReferralConfig.findOne();
+    }
+    return cachedReferralConfig || { isEnabled: false };
+}
+setInterval(async () => {
+    cachedReferralConfig = await ReferralConfig.findOne();
+}, 60000); // refresh every minute
+
+async function processReferralReward({ traderId, tradeId, tradeAmount, io }) {
+    try {
+        const config = await getReferralConfig();
+        if (!config.isEnabled) return;
+        if (tradeAmount < (config.minTradeAmountForReward || 0)) return;
+
+        const trader = await User.findById(traderId).select('referredBy');
+        if (!trader || !trader.referredBy) return;
+
+        const referrer = await User.findById(trader.referredBy).select('referralTier referralBalance referralEarnings');
+        if (!referrer) return;
+
+        const tierLevel = referrer.referralTier || 1;
+        const tier = config.tiers && config.tiers.find(t => t.level === tierLevel);
+        if (!tier) return; // Default or misconfigured
+
+        const rewardAmount = parseFloat((tradeAmount * (tier.revSharePercent / 100)).toFixed(2));
+        if (rewardAmount <= 0) return;
+
+        // Prevent duplicate rewards
+        const alreadyRewarded = await ReferralReward.findOne({ tradeId });
+        if (alreadyRewarded) return;
+
+        // Credit to Referrer
+        await User.findByIdAndUpdate(referrer._id, {
+            $inc: { referralBalance: rewardAmount, referralEarnings: rewardAmount }
+        });
+
+        // Audit log
+        await ReferralReward.create({
+            referrerId: referrer._id,
+            refereeId: traderId,
+            tradeId,
+            tradeAmount,
+            rewardAmount,
+            rewardType: 'revshare',
+            tierAtTime: tier.level,
+            percentageApplied: tier.revSharePercent
+        });
+
+        // Inform user in real-time if connected
+        io.to(referrer._id.toString()).emit('referral_reward', {
+            amount: rewardAmount,
+            tier: tier.name,
+            percentage: tier.revSharePercent
+        });
+    } catch (e) {
+        console.error('Error processing referral reward:', e);
+    }
+}
 
 // Trade statistics (in-memory cache for speed)
 // Trade statistics (per asset)
@@ -1096,6 +1161,16 @@ io.on('connection', (socket) => {
                                         newTrade.closePrice = closePrice;
                                         newTrade.payout = payout;
                                         await newTrade.save();
+
+                                        // Process Referral RevShare if it's a loss and NOT a tournament trade
+                                        if (result === 'loss' && !newTrade.tournamentId) {
+                                            processReferralReward({
+                                                traderId: userId,
+                                                tradeId: newTrade._id,
+                                                tradeAmount: amount,
+                                                io
+                                            }).catch(err => console.error('Referral reward error:', err));
+                                        }
 
 
 
