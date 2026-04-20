@@ -20,7 +20,10 @@ export default function ReferralPage() {
                 setStats(statsData);
                 setRewards(rewardsData.rewards || []);
                 setLoading(false);
-            }).catch(console.error);
+            }).catch(err => {
+                console.error('Failed to load referral data:', err);
+                setLoading(false); // ← was missing: prevents infinite spinner
+            });
         }
     }, [session]);
 

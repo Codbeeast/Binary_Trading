@@ -15,7 +15,8 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (status === "authenticated") {
-            router.push("/");
+            // If already logged in, go to the active dashboard/app instead of landing page
+            router.push("/chart");
         }
     }, [status, router]);
 

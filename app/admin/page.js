@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { io } from "socket.io-client";
-import { Users, Activity, TrendingUp, TrendingDown, Power, StopCircle, RefreshCw, DollarSign } from "lucide-react";
+import { Users, Activity, StopCircle, RefreshCw, DollarSign, ShieldAlert, Loader2 } from "lucide-react";
 
 // Helper function to calculate percentages for the sentiment meter
 const calculateSentiment = (buy, sell) => {
@@ -11,7 +13,7 @@ const calculateSentiment = (buy, sell) => {
         return { buyPercentage: 50, sellPercentage: 50 };
     }
     const buyPercentage = Math.round((buy / total) * 100);
-    const sellPercentage = 100 - buyPercentage; // Ensures total is exactly 100
+    const sellPercentage = 100 - buyPercentage;
     return { buyPercentage, sellPercentage };
 };
 
@@ -19,10 +21,14 @@ import AssetSelector from "@/components/AssetSelector";
 import AdminReferralSettings from "@/components/AdminReferralSettings";
 
 export default function AdminPage() {
+    // ── Session & Routing ─────────────────────────────────────────────────────
+    const { data: session, status } = useSession();
+    const router = useRouter();
+
+    // ── All State (must be before any early returns) ──────────────────────────
     const [socket, setSocket] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
 
-    // Initialize asset from LocalStorage if available
     const [selectedAsset, setSelectedAsset] = useState(() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('adminSelectedAsset');
@@ -39,51 +45,8 @@ export default function AdminPage() {
         symbol: 'BTCUSDT'
     });
 
-    // -- PERSISTENCE LOGIC START --
-    const selectedAssetRef = useRef(selectedAsset);
-    // Sync ref
-    useEffect(() => { selectedAssetRef.current = selectedAsset; }, [selectedAsset]);
-
-    // Active Trades List
     const [adminActiveTrades, setAdminActiveTrades] = useState([]);
 
-    // Ref to track last user action time to prevent server overriding local optimistic updates
-    const lastActionTime = useRef(0);
-
-    // Load saved state for the SELECTED asset on mount or change
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-
-        // Save selected asset to LS
-        localStorage.setItem('adminSelectedAsset', selectedAsset);
-
-        // Load settings for this specific asset
-        const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
-        const savedAssetData = allStates[selectedAsset];
-
-        if (savedAssetData) {
-            console.log(`📂 Loaded local settings for ${selectedAsset}:`, savedAssetData);
-            setMarketState(prev => ({ ...prev, ...savedAssetData }));
-            // Start buffer to prevent server override
-            lastActionTime.current = Date.now();
-        }
-    }, [selectedAsset]);
-
-    // Save state to LocalStorage (Dictionary) whenever it changes
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-
-        const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
-        allStates[selectedAsset] = {
-            direction: marketState.direction,
-            isActive: marketState.isActive,
-            volatility: marketState.volatility,
-            tickSpeed: marketState.tickSpeed,
-            symbol: selectedAsset
-        };
-        localStorage.setItem('adminAssetStates', JSON.stringify(allStates));
-    }, [marketState, selectedAsset]);
-    // ... existing stats state ...
     const [stats, setStats] = useState({
         activeUsers: 0,
         totalTrades: 0,
@@ -95,9 +58,50 @@ export default function AdminPage() {
         sellVolume: 0,
     });
 
-    // Calculate sentiment percentages based on REAL-TIME ACTIVE trades
-    const { buyPercentage, sellPercentage } = calculateSentiment(stats.activeBuyCount, stats.activeSellCount);
+    // ── All Refs (must be before any early returns) ───────────────────────────
+    const selectedAssetRef = useRef(selectedAsset);
+    const lastActionTime = useRef(0);
 
+    // ── All useEffects (must be before any early returns) ─────────────────────
+
+    // Sync ref with state
+    useEffect(() => { selectedAssetRef.current = selectedAsset; }, [selectedAsset]);
+
+    // Load saved state for the SELECTED asset on mount or change
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        localStorage.setItem('adminSelectedAsset', selectedAsset);
+        const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
+        const savedAssetData = allStates[selectedAsset];
+        if (savedAssetData) {
+            console.log(`📂 Loaded local settings for ${selectedAsset}:`, savedAssetData);
+            setMarketState(prev => ({ ...prev, ...savedAssetData }));
+            lastActionTime.current = Date.now();
+        }
+    }, [selectedAsset]);
+
+    // Save state to LocalStorage whenever it changes
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
+        allStates[selectedAsset] = {
+            direction: marketState.direction,
+            isActive: marketState.isActive,
+            volatility: marketState.volatility,
+            tickSpeed: marketState.tickSpeed,
+            symbol: selectedAsset
+        };
+        localStorage.setItem('adminAssetStates', JSON.stringify(allStates));
+    }, [marketState, selectedAsset]);
+
+    // Auth protection redirect
+    useEffect(() => {
+        if (status === "unauthenticated") {
+            router.push("/admin/login?callbackUrl=/admin");
+        }
+    }, [status, router]);
+
+    // Socket connection
     useEffect(() => {
         const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
         const newSocket = io(socketUrl, {
@@ -107,22 +111,16 @@ export default function AdminPage() {
         newSocket.on('connect', () => {
             console.log('✅ Admin Connected');
             setIsConnected(true);
-            newSocket.emit('request_stats', selectedAsset); // Fetch stats for THIS asset
-            newSocket.emit('subscribe', selectedAsset); // Subscribe to selected asset to get its state
-
-            // FIX: Join admin room AFTER connection is established
+            newSocket.emit('request_stats', selectedAsset);
+            newSocket.emit('subscribe', selectedAsset);
             newSocket.emit('join_admin');
             newSocket.emit('request_active_trades', selectedAsset);
 
-            // RESTORE SERVER STATE from Local Storage (Client is Master)
             const allStates = JSON.parse(localStorage.getItem('adminAssetStates') || '{}');
             const savedAssetData = allStates[selectedAsset];
-
             if (savedAssetData) {
                 console.log("🔄 Restoring Server State from Client:", savedAssetData);
-                // Mark this as a user action
                 lastActionTime.current = Date.now();
-
                 newSocket.emit('control_update', {
                     symbol: selectedAsset,
                     direction: savedAssetData.direction,
@@ -133,15 +131,16 @@ export default function AdminPage() {
             }
         });
 
-        newSocket.on('disconnect', () => setIsConnected(false));
+        newSocket.on('disconnect', () => {
+            console.log('❌ Admin Disconnected');
+            setIsConnected(false);
+        });
 
-        // Admin: Active Trades Sync (listeners only - no emits before connect)
         newSocket.on('active_trades_list', (trades) => {
             setAdminActiveTrades(trades);
         });
 
         newSocket.on('admin_new_trade', (trade) => {
-            // Only add if it belongs to currently viewed asset
             if (trade.symbol === selectedAssetRef.current) {
                 setAdminActiveTrades(prev => [trade, ...prev]);
             }
@@ -149,12 +148,10 @@ export default function AdminPage() {
 
         newSocket.on('admin_trade_result', (result) => {
             console.log('🗑️ Trade Completed:', result.id, 'Removing from list...');
-            // Remove trade from list when completed
             setAdminActiveTrades(prev => {
                 const filtered = prev.filter(t => {
                     const tId = t._id || t.id;
                     const rId = result.id;
-                    // Loose equality to catch string vs objectid
                     return tId != rId && t.clientTradeId != rId;
                 });
                 console.log(`Remaining active trades: ${filtered.length} (was ${prev.length})`);
@@ -162,29 +159,19 @@ export default function AdminPage() {
             });
         });
 
-        newSocket.on('disconnect', () => {
-            console.log('❌ Admin Disconnected');
-            setIsConnected(false);
-        });
-
         newSocket.on('market_state', (state) => {
             if (state.symbol === selectedAsset) {
-                // IGNORE server updates if user just clicked something (2s buffer)
-                if (Date.now() - lastActionTime.current < 2000) {
-                    return;
-                }
+                if (Date.now() - lastActionTime.current < 2000) return;
                 setMarketState(state);
             }
         });
 
         newSocket.on('stats_update', (newStats) => {
-            // Only update if stats belong to the currently selected asset
             if (newStats.symbol === selectedAssetRef.current) {
                 setStats(newStats);
             }
         });
 
-        // Real-time presence count updates (sent on every connect/disconnect)
         newSocket.on('presence_count', (data) => {
             if (data && typeof data.activeUsers === 'number') {
                 setStats(prev => ({ ...prev, activeUsers: data.activeUsers }));
@@ -195,8 +182,6 @@ export default function AdminPage() {
             alert(`Candle closed for ${data.timeframe}: ${data.success ? 'Success' : 'Failed'}`);
         });
 
-        // POLLING FALLBACK: Request fresh stats every 5 seconds
-        // This guarantees real-time updates even if server push events are missed
         const statsInterval = setInterval(() => {
             if (newSocket.connected) {
                 newSocket.emit('request_stats', selectedAssetRef.current);
@@ -209,7 +194,7 @@ export default function AdminPage() {
             clearInterval(statsInterval);
             newSocket.close();
         };
-    }, [selectedAsset]); // Re-connect or re-subscribe when asset changes
+    }, [selectedAsset]);
 
     // Re-fetch trades when asset changes
     useEffect(() => {
@@ -218,33 +203,70 @@ export default function AdminPage() {
         }
     }, [selectedAsset, socket, isConnected]);
 
-    // Refetch stats when asset changes (if socket exists)
+    // Refetch stats when asset changes
     useEffect(() => {
         if (socket && isConnected) {
             socket.emit('request_stats', selectedAsset);
         }
     }, [selectedAsset, socket, isConnected]);
 
+    // ── Derived State ─────────────────────────────────────────────────────────
+    const { buyPercentage, sellPercentage } = calculateSentiment(stats.activeBuyCount, stats.activeSellCount);
+
+    // ── Event Handlers ────────────────────────────────────────────────────────
     const handleControlUpdate = (field, value) => {
         if (!socket) return;
-
-        // Mark action time
         lastActionTime.current = Date.now();
-
         const updates = { [field]: value, symbol: selectedAsset };
-        // Update local state immediately for better UX
         setMarketState(prev => ({ ...prev, [field]: value }));
-
-        // Send the update to the backend server
         socket.emit('control_update', updates);
     };
 
-    // MODIFIED: Removed the confirmation prompt
     const handleForceCloseCandle = (timeframe) => {
         if (!socket) return;
         socket.emit('force_close_candle', { timeframe, symbol: selectedAsset });
+    };
+
+    // ── Early Returns (AFTER all hooks) ──────────────────────────────────────
+    if (status === "loading") {
+        return (
+            <div className="min-h-screen bg-[#0F1115] flex flex-col items-center justify-center text-white">
+                <Loader2 className="w-10 h-10 animate-spin text-orange-500 mb-4" />
+                <p className="text-gray-400 animate-pulse">Verifying administrative access...</p>
+            </div>
+        );
     }
 
+    if (!session || session.user.role !== "admin") {
+        return (
+            <div className="min-h-screen bg-[#0F1115] flex flex-col items-center justify-center text-white p-6">
+                <div className="w-16 h-16 bg-red-500/10 rounded-2xl border border-red-500/20 flex items-center justify-center text-red-500 mb-6">
+                    <ShieldAlert size={32} />
+                </div>
+                <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+                <p className="text-gray-400 text-center max-w-md mb-8">
+                    You do not have the necessary permissions to access the administrative dashboard.
+                    Please contact the system administrator if you believe this is an error.
+                </p>
+                <div className="flex gap-4">
+                    <button
+                        onClick={() => router.push("/")}
+                        className="px-6 py-2.5 bg-[#1C1F26] border border-[#2C303A] rounded-xl hover:bg-[#252830] transition-all"
+                    >
+                        Return Home
+                    </button>
+                    <button
+                        onClick={() => router.push("/admin/login")}
+                        className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 rounded-xl transition-all font-semibold"
+                    >
+                        Switch Account
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Main Render ───────────────────────────────────────────────────────────
     return (
         <main className="min-h-screen bg-[#0F1115] text-[#E3E5E8] p-6 font-sans">
             <header className="mb-8 flex items-center justify-between">
@@ -330,8 +352,6 @@ export default function AdminPage() {
                             </div>
                         </div>
                     </section>
-
-
                 </div>
 
                 {/* Active Trades List */}
@@ -412,56 +432,14 @@ export default function AdminPage() {
                                     </button>
                                 </div>
                             </div>
-
-                            {/* Volatility */}
-                            {/* <div className="space-y-3">
-                                <div className="flex justify-between">
-                                    <label className="text-sm font-medium text-gray-300">Volatility Index</label>
-                                    <span className="text-sm text-indigo-400 font-bold">{marketState.volatility}x</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="0.1"
-                                    max="5.0"
-                                    step="0.1"
-                                    value={marketState.volatility}
-                                    onChange={(e) => handleControlUpdate('volatility', parseFloat(e.target.value))}
-                                    className="w-full h-2 bg-[#2C303A] rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                                />
-                                <div className="flex justify-between text-xs text-gray-500">
-                                    <span>Stable</span>
-                                    <span>Highly Volatile</span>
-                                </div>
-                            </div> */}
-
-                            {/* Tick Speed
-                            <div className="space-y-3">
-                                <div className="flex justify-between">
-                                    <label className="text-sm font-medium text-gray-300">Tick Speed (Update Rate)</label>
-                                    <span className="text-sm text-indigo-400 font-bold">{marketState.tickSpeed}ms</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="100"
-                                    max="1000"
-                                    step="50"
-                                    value={marketState.tickSpeed}
-                                    onChange={(e) => handleControlUpdate('tickSpeed', parseInt(e.target.value))}
-                                    className="w-full h-2 bg-[#2C303A] rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                                />
-                                <div className="flex justify-between text-xs text-gray-500">
-                                    <span>Fast (100ms)</span>
-                                    <span>Slow (1000ms)</span>
-                                </div>
-                            </div> */}
                         </div>
                     </section>
                 </div>
 
             </div>
-            
+
             <AdminReferralSettings />
-            
+
             {/* Critical Actions */}
             <section className="bg-[#16181D] border border-[#272A32] rounded-xl mt-8 p-6">
                 <h2 className="text-lg font-semibold mb-4 text-white flex items-center gap-2">
@@ -483,7 +461,6 @@ export default function AdminPage() {
                         <span>Stop 1m Candle</span>
                         <span className="text-[10px] opacity-70">Force Close Immediately</span>
                     </button>
-                    {/* Add more timeframes as needed */}
                 </div>
             </section>
         </main>
